@@ -626,15 +626,15 @@ int main(int argc, char *argv[])
     }
 
 
-    // label nValidCellZones = 0;
+    label nValidCellZones = 0;
 
-    // forAll(zoneCells, zoneI)
-    // {
-    //     if (zoneCells[zoneI].size())
-    //     {
-    //         nValidCellZones++;
-    //     }
-    // }
+    forAll(zoneCells, zoneI)
+    {
+        if (zoneCells[zoneI].size())
+        {
+            nValidCellZones++;
+        }
+    }
 
 
     // // Problem is that the orientation of the patchFaces does not have to
