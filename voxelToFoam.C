@@ -235,34 +235,6 @@ label findInternalFace(const primitiveMesh& mesh, const labelList& meshF)
 }
 
 
-// Determine whether cell is inside-out by checking for any wrong-oriented
-// face.
-bool correctOrientation(const pointField& points, const cellShape& shape)
-{
-    // Get centre of shape.
-    point cc(shape.centre(points));
-
-    // Get outwards pointing faces.
-    faceList faces(shape.faces());
-
-    forAll(faces, i)
-    {
-        const face& f = faces[i];
-
-        const vector a(f.area(points));
-
-        // Check if vector from any point on face to cc points outwards
-        if (((points[f[0]] - cc) & a) < 0)
-        {
-            // Incorrectly oriented
-            return false;
-        }
-    }
-
-    return true;
-}
-
-
 // Reads mesh format
 void readFileHeading(IFstream& inFile)
 {
@@ -435,36 +407,43 @@ void readElSet
     List<string> header = headerParse(lineStr);
     string regionName = header[1];
 
-    Info<< "Mapping Element Set " << regionName
-        << " to Foam cellZone " << zoneI 
-        << endl;
-
-    elementSets.insert(zoneI, string::validate<word>(regionName));
-    
-    while (inFile.good())
+    if (regionName.substr(0,3) != "All")
     {
-        string line;
-        inFile.getLine(line);
-        IStringStream lineStr(line);
-        variable tag(lineStr);
+        Info<< "Mapping Element Set " << regionName
+            << " to Foam cellZone " << zoneI 
+            << endl;
 
-        if (tag.substr(0,1) == "*")
+        elementSets.insert(zoneI, string::validate<word>(regionName));
+        
+        while (inFile.good())
         {
-            Info<< "Finished reading ElSet. Elements read:"
-                << zoneCells[zoneI].size()
-                << endl;
-            break;
+            string line;
+            inFile.getLine(line);
+            IStringStream lineStr(line);
+            variable tag(lineStr);
+
+            if (tag.substr(0,1) == "*")
+            {
+                Info<< "Finished reading ElSet. Elements read:"
+                    << zoneCells[zoneI].size()
+                    << endl;
+                break;
+            }
+
+            List<label> row = labelParse(lineStr, SIZE_NOT_DEFINED);
+
+            for (int i = 1; i < row.size(); i++)
+            {
+                zoneCells[zoneI].append(row[i]-1);
+            }
+
+            inFile.getLine(line);
+            IStringStream tagStr(line);
         }
-
-        List<label> row = labelParse(lineStr, SIZE_NOT_DEFINED);
-
-        for (int i = 1; i < row.size(); i++)
-        {
-            zoneCells[zoneI].append(row[i]-1);
-        }
-
-        inFile.getLine(line);
-        IStringStream tagStr(line);
+    }
+    else
+    {
+        Info<< "Ignoring redundant set." << endl;
     }
 }
 
@@ -494,35 +473,54 @@ void readNSet
     List<string> header = headerParse(lineStr);
     string regionName = header[1];
 
-    Info<< "Mapping Point Set " << regionName
-        << " to Foam cellZone " << zoneI 
-        << endl;
-
-    pointSets.insert(zoneI, string::validate<word>(regionName));
-    
-    while (inFile.good())
+    if (regionName.substr(0,11) != "Constraints" || regionName.substr(0,3) != "All")
     {
-        string line;
-        inFile.getLine(line);
-        IStringStream lineStr(line);
-        variable tag(lineStr);
+        Info<< "Mapping Point Set " << regionName
+            << " to Foam cellZone " << zoneI 
+            << endl;
 
-        if (tag.substr(0,1) == "*")
+        pointSets.insert(zoneI, string::validate<word>(regionName));
+        
+        while (inFile.good())
         {
-            Info<< "Finished reading NSet. Nodes read:"
-                << zonePoints[zoneI]
-                << endl;
-            break;
-        }
+            string line;
+            inFile.getLine(line);
+            IStringStream lineStr(line);
+            variable tag(lineStr);
 
-        List<label> row = labelParse(lineStr, SIZE_NOT_DEFINED);
-        renumber(texgenToFoam, row);
+            if (tag.substr(0,1) == "*")
+            {
+                Info<< "Finished reading NSet. Nodes read:"
+                    << zonePoints[zoneI]
+                    << endl;
+                break;
+            }
 
-        for (int i = 1; i < row.size(); i++)
-        {
-            zonePoints[zoneI].append(row[i]);
+            List<label> row = labelParse(lineStr, SIZE_NOT_DEFINED);
+            renumber(texgenToFoam, row);
+
+            for (int i = 1; i < row.size(); i++)
+            {
+                zonePoints[zoneI].append(row[i]);
+            }
         }
     }
+    else
+    {
+        Info<< "Ignoring redundant set." << endl;
+    }
+}
+
+void generateExternalPatches
+(
+    Map<word>& elementSets,
+    Map<word>& pointSets,
+    List<DynamicList<face>> patchFaces,
+    List<DynamicList<label>> zoneCells,
+    List<DynamicList<label>> zonePoints
+)
+{
+    
 }
 
 
@@ -530,7 +528,7 @@ void readNSet
 int main(int argc, char *argv[])
 {
     argList::noParallel();
-    argList::validArgs.append(".msh file");
+    argList::validArgs.append(".inp file");
     argList::addBoolOption
     (
         "keepOrientation",
@@ -553,7 +551,6 @@ int main(int argc, char *argv[])
         regionName = Foam::polyMesh::defaultRegion;
     }
 
-    const bool keepOrientation = args.optionFound("keepOrientation");
     IFstream inFile(args[1]);
     bool nodesNotRead(true);
     bool elemsNotRead(true);
@@ -626,15 +623,15 @@ int main(int argc, char *argv[])
     }
 
 
-    label nValidCellZones = 0;
+    // label nValidCellZones = 0;
 
-    forAll(zoneCells, zoneI)
-    {
-        if (zoneCells[zoneI].size())
-        {
-            nValidCellZones++;
-        }
-    }
+    // forAll(zoneCells, zoneI)
+    // {
+    //     if (zoneCells[zoneI].size())
+    //     {
+    //         nValidCellZones++;
+    //     }
+    // }
 
 
     // // Problem is that the orientation of the patchFaces does not have to
@@ -679,23 +676,23 @@ int main(int argc, char *argv[])
     //     polyPatch::typeName
     // );
 
-    // polyMesh mesh
-    // (
-    //     IOobject
-    //     (
-    //         regionName,
-    //         runTime.constant(),
-    //         runTime
-    //     ),
-    //     move(points),
-    //     cells,
-    //     boundaryFaces,
-    //     boundaryPatchNames,
-    //     boundaryPatchTypes,
-    //     defaultFacesName,
-    //     defaultFacesType,
-    //     boundaryPatchPhysicalTypes
-    // );
+    polyMesh mesh
+    (
+        IOobject
+        (
+            regionName,
+            runTime.constant(),
+            runTime
+        ),
+        move(points),
+        cells,
+        boundaryFaces,
+        boundaryPatchNames,
+        boundaryPatchTypes,
+        defaultFacesName,
+        defaultFacesType,
+        boundaryPatchPhysicalTypes
+    );
 
     // repatchPolyTopoChanger repatcher(mesh);
 
