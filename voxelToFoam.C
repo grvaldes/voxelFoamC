@@ -92,11 +92,11 @@ List<string> headerParse(IStringStream& lineStr)
 }
 
 // Comma delimited row parsing.
-List<scalar> scalarParse(IStringStream& lineStr, label ListSize)
+List<scalar> scalarParse(string& tag, label ListSize)
 {
     List<scalar> row(ListSize);
 
-    variable tag(lineStr);
+    // variable tag(lineStr);
     label pos;
     label rowI(0);
 
@@ -242,15 +242,13 @@ void readFileHeading(IFstream& inFile)
     inFile.getLine(line);
 
     Info<< line << endl;
-
-    inFile.getLine(line);
 }
 
 
 // Reads points and map
 void readPoints(IFstream& inFile, pointField& points, Map<label>& texgenToFoam)
 {
-    Info<< "Starting to read points at line " << inFile.lineNumber() << endl;
+    Info<< "\nStarting to read points at line " << inFile.lineNumber() << endl;
 
     label pointi = 0;
 
@@ -258,18 +256,21 @@ void readPoints(IFstream& inFile, pointField& points, Map<label>& texgenToFoam)
     { 
         string line;
         inFile.getLine(line);
-        IStringStream lineStr(line);
-        variable tag(lineStr);
+        // IStringStream lineStr(line);
+        // variable tag(lineStr);
 
-        if (tag.substr(0,1) == "*")
+        if (line.substr(0,1) == "*")
         {
             Info<< "Finished reading nodes. Vertices read:"
                 << texgenToFoam.size()
                 << endl;
+            // Info<< points << endl;
+            // label& lineNumber = inFile.lineNumber();
+            // lineNumber--;
             break;
         }
 
-        List<scalar> row = scalarParse(lineStr, 4);
+        List<scalar> row = scalarParse(line, 4);
 
         scalar mshLabel = row[0];
         scalar xVal = row[1];
@@ -293,7 +294,6 @@ void readPoints(IFstream& inFile, pointField& points, Map<label>& texgenToFoam)
 // Reads cells and patch faces
 void readCells
 (
-    const bool keepOrientation,
     const pointField& points,
     const Map<label>& texgenToFoam,
     IFstream& inFile,
@@ -350,23 +350,6 @@ void readCells
         cells.append( cellShape(hex, hexPoints) );
 
         const cellShape& cell = cells[celli];
-
-        if (!keepOrientation && !correctOrientation(points, cell))
-        {
-            Info<< "Inverting hex " << celli << endl;
-            // Reorder hex.
-            hexPoints[0] = cell[4];
-            hexPoints[1] = cell[5];
-            hexPoints[2] = cell[6];
-            hexPoints[3] = cell[7];
-            hexPoints[4] = cell[0];
-            hexPoints[5] = cell[1];
-            hexPoints[6] = cell[2];
-            hexPoints[7] = cell[3];
-
-            cells[celli] = cellShape(hex, hexPoints);
-        }
-
         celli++;
     }
 
@@ -529,11 +512,6 @@ int main(int argc, char *argv[])
 {
     argList::noParallel();
     argList::validArgs.append(".inp file");
-    argList::addBoolOption
-    (
-        "keepOrientation",
-        "retain raw orientation for prisms/hexs"
-    );
 
     #include "addRegionOption.H"
     #include "setRootCase.H"
@@ -562,6 +540,9 @@ int main(int argc, char *argv[])
     // Storage for all cells.
     cellShapeList cells;
 
+    // Storage for all faces.
+    faceList faces;
+
     // Storage for zones.
     List<DynamicList<face>> patchFaces(0);
     List<DynamicList<label>> zoneCells(0);
@@ -573,17 +554,15 @@ int main(int argc, char *argv[])
 
     string line;
     inFile.getLine(line);
-    IStringStream lineStr(line);
+    // IStringStream lineStr(line);
 
     while (inFile.good())
-    {
-        variable tag(lineStr);
-
-        if (tag.substr(0, 8) == "*Heading")
+    {   
+        if (line.substr(0, 8) == "*Heading")
         {
             readFileHeading(inFile);
         }
-        else if (tag.substr(0, 5) == "*Node")
+        else if (line.substr(0, 5) == "*Node")
         {
             if (nodesNotRead)
             {
@@ -591,13 +570,13 @@ int main(int argc, char *argv[])
                 nodesNotRead = false;
             }
         }
-        else if (tag.substr(0, 8) == "*Element")
+        else if (line.substr(0, 8) == "*Element")
         {
+            Info<< "did I even go here?" << endl;
             if (elemsNotRead)
             {
                 readCells
                 (
-                    keepOrientation,
                     points,
                     texgenToFoam,
                     inFile,
@@ -606,23 +585,20 @@ int main(int argc, char *argv[])
                 elemsNotRead = false;
             }
         }
-        else if (tag.substr(0, 6) == "*Elset")
+        else if (line.substr(0, 6) == "*ElSet")
         {
             readElSet(inFile, elementSets, zoneCells);
         }
-        else if (tag.substr(0, 5) == "*NSet")
+        else if (line.substr(0, 5) == "*NSet")
         {
             readNSet(inFile, pointSets, texgenToFoam, zonePoints);
         }
-        else
-        {
-            string line;
-            inFile.getLine(line);
-            IStringStream lineStr(line);
-        }
+
+        inFile.getLine(line); //Info<< line << endl;
+        // IStringStream lineStr(line);
     }
 
-
+    Info << "Final value of line was: " << line << endl;
     // label nValidCellZones = 0;
 
     // forAll(zoneCells, zoneI)
@@ -676,23 +652,18 @@ int main(int argc, char *argv[])
     //     polyPatch::typeName
     // );
 
-    polyMesh mesh
-    (
-        IOobject
-        (
-            regionName,
-            runTime.constant(),
-            runTime
-        ),
-        move(points),
-        cells,
-        boundaryFaces,
-        boundaryPatchNames,
-        boundaryPatchTypes,
-        defaultFacesName,
-        defaultFacesType,
-        boundaryPatchPhysicalTypes
-    );
+    // polyMesh mesh
+    // (
+    //     IOobject
+    //     (
+    //         regionName,
+    //         runTime.constant(),
+    //         runTime
+    //     ),
+    //     move(points),
+    //     faces,
+    //     cells
+    // );
 
     // repatchPolyTopoChanger repatcher(mesh);
 
@@ -702,7 +673,18 @@ int main(int argc, char *argv[])
     // const polyPatch& pp = mesh.boundaryMesh().last();
 
     // // Storage for faceZones.
-    // List<DynamicList<label>> zoneFaces(patchFaces.size());
+    // List<DynamicList<label>> zoneFaces(patchFaces.size    // polyMesh mesh
+    // (
+    //     IOobject
+    //     (
+    //         regionName,
+    //         runTime.constant(),
+    //         runTime
+    //     ),
+    //     move(points),
+    //     faces,
+    //     cells
+    // );());
 
 
     // // Go through all the patchFaces and find corresponding face in pp.
