@@ -66,83 +66,94 @@ static label NODHEX   = 8;
 
 
 // Comma delimited row parsing.
-List<string> headerParse(IStringStream& lineStr)
+List<string> headerParse(string line)
 {
     List<string> row;
 
-    variable tag(lineStr);
     label pos;
     label subpos;
     label rowI(0);
 
-    while ((pos = tag.find(",")) != -1)
+    while (true)
     {
-        row.append(tag.substr(0, pos));
+        pos = line.find(",");
+        row.append(line.substr(0, pos));
 
         if ((subpos = row[rowI].find("=")) != -1)
         {
-            row[rowI] = row[rowI].substr(subpos, row[rowI].length() - subpos);
+            row[rowI] = row[rowI].substr(subpos+1, row[rowI].length() - subpos);
         }
 
-        tag.erase(0, pos+1);
+        line.erase(0, pos+1);
         rowI++;
-    }
 
-    return row;
+        if (pos == -1)
+        {
+            return row;
+        }
+    }
 }
 
 // Comma delimited row parsing.
-List<scalar> scalarParse(string& tag, label ListSize)
+List<scalar> scalarParse(string line, label ListSize)
 {
     List<scalar> row(ListSize);
 
-    // variable tag(lineStr);
     label pos;
     label rowI(0);
 
-    while ((pos = tag.find(",")) != -1)
+    while (true)
     {
+        pos = line.find(",");
+
         if (ListSize == SIZE_NOT_DEFINED)
         {
-            row.append(stod(tag.substr(0, pos)));
+            row.append(stod(line.substr(0, pos)));
         }
         else
         {
-            row[rowI] = stod(tag.substr(0, pos));
+            row[rowI] = stod(line.substr(0, pos));
         }
 
-        tag.erase(0, pos+1);
+        line.erase(0, pos+1);
         rowI++;
-    }
 
-    return row;
+        if (pos == -1)
+        {
+            return row;
+        }
+    }
 }
 
 // Comma delimited row parsing.
-List<label> labelParse(IStringStream& lineStr, label ListSize)
+List<label> labelParse(string line, label ListSize)
 {
     List<label> row(ListSize);
 
-    variable tag(lineStr);
     label pos;
     label rowI(0);
 
-    while ((pos = tag.find(",")) != -1)
+    while (true)
     {
+        pos = line.find(",");
+
         if (ListSize == SIZE_NOT_DEFINED)
         {
-            row.append(stoi(tag.substr(0, pos)));
+            row.append(stoi(line.substr(0, pos)));
         }
         else
         {
-            row[rowI] = stoi(tag.substr(0, pos));
+            row[rowI] = stoi(line.substr(0, pos));
         }
 
-        tag.erase(0, pos+1);
+        line.erase(0, pos+1);
         rowI++;
-    }
 
-    return row;
+        if (pos == -1)
+        {
+            return row;
+        }
+    }
 }
 
 // Assign OF numbers to TG nodes.
@@ -236,37 +247,37 @@ label findInternalFace(const primitiveMesh& mesh, const labelList& meshF)
 
 
 // Reads mesh format
-void readFileHeading(IFstream& inFile)
+void readFileHeading(IFstream& inFile, string& line)
 {
-    string line;
     inFile.getLine(line);
-
-    Info<< line << endl;
+    Info<< line << "\n" << endl;
 }
 
 
 // Reads points and map
-void readPoints(IFstream& inFile, pointField& points, Map<label>& texgenToFoam)
+void readPoints
+(
+    IFstream& inFile, 
+    string& line, 
+    pointField& points, 
+    Map<label>& texgenToFoam
+)
 {
-    Info<< "\nStarting to read points at line " << inFile.lineNumber() << endl;
-
     label pointi = 0;
+
+    Info<< "Starting to read points at line " 
+    << inFile.lineNumber()
+    << endl;
 
     while (inFile.good())
     { 
-        string line;
         inFile.getLine(line);
-        // IStringStream lineStr(line);
-        // variable tag(lineStr);
 
-        if (line.substr(0,1) == "*")
+        if (line(1) == "*")
         {
             Info<< "Finished reading nodes. Vertices read:"
-                << texgenToFoam.size()
+                << texgenToFoam.size() << "\n"
                 << endl;
-            // Info<< points << endl;
-            // label& lineNumber = inFile.lineNumber();
-            // lineNumber--;
             break;
         }
 
@@ -294,16 +305,13 @@ void readPoints(IFstream& inFile, pointField& points, Map<label>& texgenToFoam)
 // Reads cells and patch faces
 void readCells
 (
+    IFstream& inFile,
+    string& line,
     const pointField& points,
     const Map<label>& texgenToFoam,
-    IFstream& inFile,
     cellShapeList& cells
 )
 {
-    label& lineNumber = inFile.lineNumber();
-
-    Info<< "Starting to read cells at line " << lineNumber << endl;
-
     const cellModel& hex = *(cellModeller::lookup("hex"));
 
     face triPoints(3);
@@ -313,33 +321,28 @@ void readCells
     labelList prismPoints(6);
     labelList hexPoints(8);
 
-    lineNumber--;
-
-    string line;
-    inFile.getLine(line);
-    IStringStream lineStr(line);
-
-    List<string> header = headerParse(lineStr);
+    Info<< "Starting to read cells at line " 
+        << inFile.lineNumber()
+        << endl;
+    
+    List<string> header = headerParse(line);
 
     string elmType = header[1];
     label celli = 0;
 
     while (inFile.good())
     {
-        string line;
         inFile.getLine(line);
-        IStringStream lineStr(line);
-        variable tag(lineStr);
 
-        if (tag.substr(0,1) == "*")
+        if (line(1) == "*")
         {
-            Info<< "Finished reading cells. Elements read:"
-                << texgenToFoam.size()
+            Info<< "Finished reading cells. Elements read: "
+                << cells.size() << "\n"
                 << endl;
             break;
         }
 
-        List<label> row = labelParse(lineStr, NODHEX+1);
+        List<label> row = labelParse(line, NODHEX+1);
 
         forAll (hexPoints, i)
         {
@@ -353,9 +356,9 @@ void readCells
         celli++;
     }
 
-    Info<< "Cells:" << endl
-    << "    total:" << cells.size()
-    << endl;
+    // Info<< "Cells:" << endl
+    // << "    total:" << cells.size()
+    // << endl;
 
     if (cells.size() == 0)
     {
@@ -370,63 +373,49 @@ void readCells
 void readElSet
 (
     IFstream& inFile, 
+    string& line,
     Map<word>& elementSets,
     List<DynamicList<label>>& zoneCells
 )
 {
-    Info<< "Starting to read element set at line " << inFile.lineNumber()
-        << endl;
-
     label zoneI = zoneCells.size();
     zoneCells.setSize(zoneI+1);
 
-    label& lineNumber = inFile.lineNumber();
-    lineNumber--;
-
-    string line;
-    inFile.getLine(line);
-    IStringStream lineStr(line);
-
-    List<string> header = headerParse(lineStr);
+    List<string> header = headerParse(line);
     string regionName = header[1];
 
-    if (regionName.substr(0,3) != "All")
+    if (regionName(3) != "All")
     {
         Info<< "Mapping Element Set " << regionName
             << " to Foam cellZone " << zoneI 
+            << " from line " << inFile.lineNumber()
             << endl;
 
         elementSets.insert(zoneI, string::validate<word>(regionName));
         
         while (inFile.good())
         {
-            string line;
             inFile.getLine(line);
-            IStringStream lineStr(line);
-            variable tag(lineStr);
 
-            if (tag.substr(0,1) == "*")
+            if (line(1) == "*")
             {
-                Info<< "Finished reading ElSet. Elements read:"
-                    << zoneCells[zoneI].size()
+                Info<< "Finished reading ElSet. Elements read: "
+                    << zoneCells[zoneI].size() << "\n"
                     << endl;
                 break;
             }
 
-            List<label> row = labelParse(lineStr, SIZE_NOT_DEFINED);
+            List<label> row = labelParse(line, SIZE_NOT_DEFINED);
 
             for (int i = 1; i < row.size(); i++)
             {
                 zoneCells[zoneI].append(row[i]-1);
             }
-
-            inFile.getLine(line);
-            IStringStream tagStr(line);
         }
     }
     else
     {
-        Info<< "Ignoring redundant set." << endl;
+        inFile.getLine(line);
     }
 }
 
@@ -435,51 +424,45 @@ void readElSet
 void readNSet
 (
     IFstream& inFile, 
+    string& line,
     Map<word>& pointSets,
     const Map<label>& texgenToFoam,
     List<DynamicList<label>>& zonePoints
 )
 {
-    Info<< "Starting to read point set at line " << inFile.lineNumber()
-        << endl;
-
     label zoneI = zonePoints.size();
     zonePoints.setSize(zoneI+1);
 
-    label& lineNumber = inFile.lineNumber();
-    lineNumber--;
-
-    string line;
-    inFile.getLine(line);
-    IStringStream lineStr(line);
-
-    List<string> header = headerParse(lineStr);
+    List<string> header = headerParse(line);
     string regionName = header[1];
 
-    if (regionName.substr(0,11) != "Constraints" || regionName.substr(0,3) != "All")
+    if 
+    (
+        regionName(11) != "Constraints" && 
+        regionName(6) != "Master" &&
+        regionName(3) != "All"
+    )
     {
         Info<< "Mapping Point Set " << regionName
             << " to Foam cellZone " << zoneI 
+            << " from line " << inFile.lineNumber()
             << endl;
 
         pointSets.insert(zoneI, string::validate<word>(regionName));
         
         while (inFile.good())
         {
-            string line;
             inFile.getLine(line);
-            IStringStream lineStr(line);
-            variable tag(lineStr);
 
-            if (tag.substr(0,1) == "*")
+            if (line(1) == "*")
             {
-                Info<< "Finished reading NSet. Nodes read:"
-                    << zonePoints[zoneI]
+                Info<< "Finished reading NSet. Nodes read: "
+                    << zonePoints[zoneI].size() << "\n"
                     << endl;
                 break;
             }
 
-            List<label> row = labelParse(lineStr, SIZE_NOT_DEFINED);
+            List<label> row = labelParse(line, SIZE_NOT_DEFINED);
             renumber(texgenToFoam, row);
 
             for (int i = 1; i < row.size(); i++)
@@ -490,7 +473,7 @@ void readNSet
     }
     else
     {
-        Info<< "Ignoring redundant set." << endl;
+        inFile.getLine(line);
     }
 }
 
@@ -554,51 +537,45 @@ int main(int argc, char *argv[])
 
     string line;
     inFile.getLine(line);
-    // IStringStream lineStr(line);
 
     while (inFile.good())
     {   
-        if (line.substr(0, 8) == "*Heading")
+        if (line(8) == "*Heading")
         {
-            readFileHeading(inFile);
+            readFileHeading(inFile, line);
         }
-        else if (line.substr(0, 5) == "*Node")
+        else if (line(5) == "*Node" && nodesNotRead)
         {
-            if (nodesNotRead)
-            {
-                readPoints(inFile, points, texgenToFoam);
-                nodesNotRead = false;
-            }
+            readPoints(inFile, line, points, texgenToFoam);
+            nodesNotRead = false;
         }
-        else if (line.substr(0, 8) == "*Element")
+        else if (line(8) == "*Element" && elemsNotRead)
         {
-            Info<< "did I even go here?" << endl;
-            if (elemsNotRead)
-            {
-                readCells
-                (
-                    points,
-                    texgenToFoam,
-                    inFile,
-                    cells
-                );
-                elemsNotRead = false;
-            }
+            readCells
+            (
+                inFile,
+                line,
+                points,
+                texgenToFoam,
+                cells
+            );
+            elemsNotRead = false;
         }
-        else if (line.substr(0, 6) == "*ElSet")
+        else if (line(6) == "*ElSet")
         {
-            readElSet(inFile, elementSets, zoneCells);
+            readElSet(inFile, line, elementSets, zoneCells);
         }
-        else if (line.substr(0, 5) == "*NSet")
+        else if (line(5) == "*NSet")
         {
-            readNSet(inFile, pointSets, texgenToFoam, zonePoints);
+            readNSet(inFile, line, pointSets, texgenToFoam, zonePoints);
         }
-
-        inFile.getLine(line); //Info<< line << endl;
-        // IStringStream lineStr(line);
+        else
+        {
+            inFile.getLine(line);
+        }
     }
 
-    Info << "Final value of line was: " << line << endl;
+    //Info << "Final value of line was: " << line << endl;
     // label nValidCellZones = 0;
 
     // forAll(zoneCells, zoneI)
