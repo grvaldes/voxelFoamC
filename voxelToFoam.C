@@ -61,8 +61,9 @@ using namespace Foam;
 
 // Element type sizes
 static label SIZE_NOT_DEFINED = 0;
-static label NODQUAD  = 4;
-static label NODHEX   = 8;
+// static label NODQUAD = 4;
+static label FACEHEX = 6;
+static label NODHEX  = 8;
 
 
 // Comma delimited row parsing.
@@ -170,79 +171,97 @@ void renumber
 }
 
 
-// Find face in pp which uses all vertices in meshF (in mesh point labels)
-label findFace(const primitivePatch& pp, const labelList& meshF)
+// Set which cells are associated to a point
+// Copy from Foam::labelListList Foam::polyMesh::cellShapePointCells
+labelListList cellShapePointCells
+(
+    const cellShapeList& cells,
+    const pointField& points
+)
 {
-    const Map<label>& meshPointMap = pp.meshPointMap();
+    List<DynamicList<label, primitiveMesh::cellsPerPoint_>>
+        pc(points.size());
 
-    // meshF[0] in pp labels.
-    if (!meshPointMap.found(meshF[0]))
+    forAll(cells, i)
     {
-        Warning<< "Not using gmsh face " << meshF
-            << " since zero vertex is not on boundary of polyMesh" << endl;
-        return -1;
-    }
+        const labelList& labels = cells[i];
 
-    // Find faces using first point
-    const labelList& pFaces = pp.pointFaces()[meshPointMap[meshF[0]]];
-
-    // Go through all these faces and check if there is one which uses all of
-    // meshF vertices (in any order ;-)
-    forAll(pFaces, i)
-    {
-        label facei = pFaces[i];
-
-        const face& f = pp[facei];
-
-        // Count uses of vertices of meshF for f
-        label nMatched = 0;
-
-        forAll(f, fp)
+        forAll(labels, j)
         {
-            if (findIndex(meshF, f[fp]) != -1)
-            {
-                nMatched++;
-            }
-        }
+            label curPoint = labels[j];
+            DynamicList<label, primitiveMesh::cellsPerPoint_>& curPointCells =
+                pc[curPoint];
 
-        if (nMatched == meshF.size())
-        {
-            return facei;
+            curPointCells.append(i);
         }
     }
 
-    return -1;
+    labelListList pointCellAddr(pc.size());
+
+    forAll(pc, pointi)
+    {
+        pointCellAddr[pointi].transfer(pc[pointi]);
+    }
+
+    return pointCellAddr;
 }
 
 
-// Same but find internal face. Expensive addressing.
-label findInternalFace(const primitiveMesh& mesh, const labelList& meshF)
+// Copy from Foam::labelList Foam::polyMesh::facePatchFaceCells
+labelList facePatchFaceCells
+(
+    const faceList& patchFaces,
+    const labelListList& pointCells,
+    const faceListList& cellsFaceShapes,
+    const label patchID
+)
 {
-    const labelList& pFaces = mesh.pointFaces()[meshF[0]];
+    bool found;
 
-    forAll(pFaces, i)
+    labelList FaceCells(patchFaces.size());
+
+    forAll(patchFaces, fI)
     {
-        label facei = pFaces[i];
+        found = false;
 
-        const face& f = mesh.faces()[facei];
+        const face& curFace = patchFaces[fI];
+        const labelList& facePoints = patchFaces[fI];
 
-        // Count uses of vertices of meshF for f
-        label nMatched = 0;
-
-        forAll(f, fp)
+        forAll(facePoints, pointi)
         {
-            if (findIndex(meshF, f[fp]) != -1)
+            const labelList& facePointCells = pointCells[facePoints[pointi]];
+
+            forAll(facePointCells, celli)
             {
-                nMatched++;
+                faceList cellFaces = cellsFaceShapes[facePointCells[celli]];
+
+                forAll(cellFaces, cellFace)
+                {
+                    if (face::sameVertices(cellFaces[cellFace], curFace))
+                    {
+                        // Found the cell corresponding to this face
+                        FaceCells[fI] = facePointCells[celli];
+
+                        found = true;
+                    }
+                    if (found) break;
+                }
+                if (found) break;
             }
+            if (found) break;
         }
 
-        if (nMatched == meshF.size())
+        if (!found)
         {
-            return facei;
+            FatalErrorInFunction
+                << "face " << fI << " in patch " << patchID
+                << " does not have neighbour cell"
+                << " face: " << patchFaces[fI]
+                << abort(FatalError);
         }
     }
-    return -1;
+
+    return FaceCells;
 }
 
 
@@ -309,17 +328,16 @@ void readCells
     string& line,
     const pointField& points,
     const Map<label>& texgenToFoam,
-    cellShapeList& cells
+    cellShapeList& cellAsShapes,
+    cellList& cells
 )
 {
     const cellModel& hex = *(cellModeller::lookup("hex"));
 
-    face triPoints(3);
     face quadPoints(4);
-    labelList tetPoints(4);
-    labelList pyrPoints(5);
-    labelList prismPoints(6);
     labelList hexPoints(8);
+
+    // cellShapeList cellAsShapes;
 
     Info<< "Starting to read cells at line " 
         << inFile.lineNumber()
@@ -350,15 +368,11 @@ void readCells
         }
 
         renumber(texgenToFoam, hexPoints);
-        cells.append( cellShape(hex, hexPoints) );
+        cellAsShapes.append( cellShape(hex, hexPoints) );
+        cells.append( cell( FACEHEX ) );
 
-        const cellShape& cell = cells[celli];
         celli++;
     }
-
-    // Info<< "Cells:" << endl
-    // << "    total:" << cells.size()
-    // << endl;
 
     if (cells.size() == 0)
     {
@@ -366,6 +380,263 @@ void readCells
             << "No cells read from file " << inFile.name() << nl
             << exit(FatalIOError);
     }
+}
+
+
+// Set faces based on cellShapes.
+// Copy from void Foam::polyMesh::setTopology
+// Copy from void Foam::polyMesh::initMesh(cellList& c)
+void setFaces
+(
+    const cellShapeList& cellsAsShapes,
+    const pointField& points,
+    faceList& faces,
+    labelList& owner,
+    labelList& neighbour,
+    faceListList& boundaryFaces,
+    wordList& boundaryPatchNames,
+    cellList& cells
+)
+{
+    label maxFaces = 0;
+    faceListList cellsFaceShapes(cellsAsShapes.size());
+
+    forAll(cellsFaceShapes, celli)
+    {
+        cellsFaceShapes[celli] = cellsAsShapes[celli].faces();
+        maxFaces += cellsFaceShapes[celli].size();
+    }
+
+    faces.setSize(maxFaces);
+    owner.setSize(maxFaces);
+    neighbour.setSize(maxFaces);
+
+    label nFaces = 0;
+    label nInternalFaces = 0;
+
+    boolList markedFaces(maxFaces);
+    bool found = false;
+
+    labelList patchSizes;
+    labelList patchStarts;
+
+    labelListList PointCells = cellShapePointCells(cellsAsShapes, points);
+
+    forAll(cells, celli)
+    {
+        const faceList& curFaces = cellsFaceShapes[celli];
+        
+        labelList neiCells(curFaces.size(), -1);
+        labelList faceOfNeiCell(curFaces.size(), -1);
+
+        label nNeighbours = 0;
+
+        forAll(curFaces, facei)
+        {
+            if (cells[celli][facei] >= 0) continue;
+
+            found = false;
+            const face& curFace = curFaces[facei];
+            const labelList& curPoints = curFace;
+
+            forAll(curPoints, pointi)
+            {
+                const labelList& curNeighbours =
+                    PointCells[curPoints[pointi]];
+
+                forAll(curNeighbours, neiI)
+                {
+                    label curNei = curNeighbours[neiI];
+
+                    if (curNei > celli)
+                    {
+                        const faceList& searchFaces = cellsFaceShapes[curNei];
+
+                        forAll(searchFaces, neiFacei)
+                        {
+                            if (searchFaces[neiFacei] == curFace)
+                            {
+                                found = true;
+
+                                neiCells[facei] = curNei;
+                                faceOfNeiCell[facei] = neiFacei;
+                                nNeighbours++;
+
+                                break;
+                            }
+                        }
+                        if (found) break;
+                    }
+                    if (found) break;
+                }
+                if (found) break;
+            }
+        }
+
+        for (label neiSearch = 0; neiSearch < nNeighbours; neiSearch++)
+        {
+            label nextNei = -1;
+            label minNei = cells.size();
+
+            forAll(neiCells, ncI)
+            {
+                if (neiCells[ncI] > -1 && neiCells[ncI] < minNei)
+                {
+                    nextNei = ncI;
+                    minNei = neiCells[ncI];
+                }
+            }
+
+            if (nextNei > -1)
+            {
+                faces[nFaces] = curFaces[nextNei];
+                cells[celli][nextNei] = nFaces;
+                cells[neiCells[nextNei]][faceOfNeiCell[nextNei]] = nFaces;
+                neiCells[nextNei] = -1;
+                nFaces++;
+            }
+            else
+            {
+                FatalErrorInFunction
+                    << "Error in internal face insertion"
+                    << abort(FatalError);
+            }
+        }
+    }
+
+    patchSizes.setSize(boundaryFaces.size(), -1);
+    patchStarts.setSize(boundaryFaces.size(), -1);
+
+    forAll(boundaryFaces, patchi)
+    {
+        const faceList& patchFaces = boundaryFaces[patchi];
+
+        labelList curPatchFaceCells =
+            facePatchFaceCells
+            (
+                patchFaces,
+                PointCells,
+                cellsFaceShapes,
+                patchi
+            );
+
+        // Grab the start label
+        label curPatchStart = nFaces;
+
+        forAll(patchFaces, facei)
+        {
+            const face& curFace = patchFaces[facei];
+
+            const label cellInside = curPatchFaceCells[facei];
+
+            // Get faces of the cell inside
+            const faceList& facesOfCellInside = cellsFaceShapes[cellInside];
+
+            bool found = false;
+
+            forAll(facesOfCellInside, cellFacei)
+            {
+                if (face::sameVertices(facesOfCellInside[cellFacei], curFace))
+                {
+                    if (cells[cellInside][cellFacei] >= 0)
+                    {
+                        FatalErrorInFunction
+                            << "Trying to specify a boundary face " << curFace
+                            << " on the face on cell " << cellInside
+                            << " which is either an internal face or already "
+                            << "belongs to some other patch.  This is face "
+                            << facei << " of patch "
+                            << patchi << " named "
+                            << boundaryPatchNames[patchi] << "."
+                            << abort(FatalError);
+                    }
+
+                    found = true;
+
+                    // Set the patch face to corresponding cell-face
+                    faces[nFaces] = facesOfCellInside[cellFacei];
+
+                    cells[cellInside][cellFacei] = nFaces;
+
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                FatalErrorInFunction
+                    << "face " << facei << " of patch " << patchi
+                    << " does not seem to belong to cell " << cellInside
+                    << " which, according to the addressing, "
+                    << "should be next to it."
+                    << abort(FatalError);
+            }
+
+            // Increment the counter of faces
+            nFaces++;
+        }
+
+        patchSizes[patchi] = nFaces - curPatchStart;
+        patchStarts[patchi] = curPatchStart;
+    }
+
+    Info<< boundaryFaces << endl;
+    Info<< patchSizes << endl;
+    Info<< patchStarts << endl;
+
+    forAll(cells, celli)
+    {
+        labelList& curCellFaces = cells[celli];
+
+        forAll(curCellFaces, facei)
+        {
+            if (curCellFaces[facei] == -1)
+            {
+                curCellFaces[facei] = nFaces;
+                faces[nFaces] = cellsFaceShapes[celli][facei];
+
+                nFaces++;
+            }
+        }
+    }
+
+    // Reset the size of the face list
+    faces.setSize(nFaces);
+
+    Info<< faces << endl;
+    Info<< cells << endl;
+    
+    forAll(cells, celli)
+    {
+        const labelList& cellfaces = cells[celli];
+
+        forAll(cellfaces, facei)
+        {
+            if (cellfaces[facei] < 0)
+            {
+                FatalErrorInFunction
+                    << "Illegal face label " << cellfaces[facei]
+                    << " in cell " << celli
+                    << exit(FatalError);
+            }
+
+            if (!markedFaces[cellfaces[facei]])
+            {
+                owner[cellfaces[facei]] = celli;
+                markedFaces[cellfaces[facei]] = true;
+            }
+            else
+            {
+                neighbour[cellfaces[facei]] = celli;
+                nInternalFaces++;
+            }
+        }
+    }
+
+    neighbour.setSize(nInternalFaces);
+
+    Info<< owner << endl;
+    Info<< neighbour << endl;
 }
 
 
@@ -379,13 +650,14 @@ void readElSet
 )
 {
     label zoneI = zoneCells.size();
-    zoneCells.setSize(zoneI+1);
 
     List<string> header = headerParse(line);
     string regionName = header[1];
 
     if (regionName(3) != "All")
     {
+        zoneCells.setSize(zoneI+1);
+        
         Info<< "Mapping Element Set " << regionName
             << " to Foam cellZone " << zoneI 
             << " from line " << inFile.lineNumber()
@@ -407,7 +679,7 @@ void readElSet
 
             List<label> row = labelParse(line, SIZE_NOT_DEFINED);
 
-            for (int i = 1; i < row.size(); i++)
+            forAll (row, i)
             {
                 zoneCells[zoneI].append(row[i]-1);
             }
@@ -431,7 +703,6 @@ void readNSet
 )
 {
     label zoneI = zonePoints.size();
-    zonePoints.setSize(zoneI+1);
 
     List<string> header = headerParse(line);
     string regionName = header[1];
@@ -443,6 +714,8 @@ void readNSet
         regionName(3) != "All"
     )
     {
+        zonePoints.setSize(zoneI+1);
+        
         Info<< "Mapping Point Set " << regionName
             << " to Foam cellZone " << zoneI 
             << " from line " << inFile.lineNumber()
@@ -465,7 +738,7 @@ void readNSet
             List<label> row = labelParse(line, SIZE_NOT_DEFINED);
             renumber(texgenToFoam, row);
 
-            for (int i = 1; i < row.size(); i++)
+            forAll (row, i)
             {
                 zonePoints[zoneI].append(row[i]);
             }
@@ -477,17 +750,20 @@ void readNSet
     }
 }
 
-void generateExternalPatches
-(
-    Map<word>& elementSets,
-    Map<word>& pointSets,
-    List<DynamicList<face>> patchFaces,
-    List<DynamicList<label>> zoneCells,
-    List<DynamicList<label>> zonePoints
-)
+
+// Setting the list of boundary names
+void setBoundaryNames(wordList& boundaryPatchNames)
 {
-    
+    boundaryPatchNames.setSize(FACEHEX);
+
+    boundaryPatchNames[0] = "Front";
+    boundaryPatchNames[1] = "Back";
+    boundaryPatchNames[2] = "Left";
+    boundaryPatchNames[3] = "Right";
+    boundaryPatchNames[4] = "Top";
+    boundaryPatchNames[5] = "Bottom";
 }
+
 
 
 
@@ -521,22 +797,36 @@ int main(int argc, char *argv[])
     Map<label> texgenToFoam;
 
     // Storage for all cells.
-    cellShapeList cells;
+    cellShapeList cellAsShapes;
+    cellList cells;
 
     // Storage for all faces.
+    faceListList boundaryFaces;
     faceList faces;
+    labelList owner;
+    labelList neighbour;
 
     // Storage for zones.
     List<DynamicList<face>> patchFaces(0);
     List<DynamicList<label>> zoneCells(0);
     List<DynamicList<label>> zonePoints(0);
 
+    // Storage for boundaries.
+    wordList boundaryPatchNames;
+    wordList boundaryPatchTypes;
+    wordList boundaryPatchPhysicalTypes;
+    word defaultBoundaryPatchName;
+    word defaultBoundaryPatchType;
+
     // Name of zones.
     Map<word> elementSets;
     Map<word> pointSets;
+    Map<word> faceSets;
 
     string line;
     inFile.getLine(line);
+
+    setBoundaryNames(boundaryPatchNames);
 
     while (inFile.good())
     {   
@@ -557,8 +847,22 @@ int main(int argc, char *argv[])
                 line,
                 points,
                 texgenToFoam,
+                cellAsShapes,
                 cells
             );
+
+            setFaces
+            (
+                cellAsShapes, 
+                points, 
+                faces, 
+                owner, 
+                neighbour,
+                boundaryFaces,
+                boundaryPatchNames,
+                cells
+            );
+
             elemsNotRead = false;
         }
         else if (line(6) == "*ElSet")
