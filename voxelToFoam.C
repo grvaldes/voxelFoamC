@@ -401,6 +401,8 @@ void setFaces
     label maxFaces = 0;
     faceListList cellsFaceShapes(cellsAsShapes.size());
 
+
+    // Setting all faces of mesh from cells
     forAll(cellsFaceShapes, celli)
     {
         cellsFaceShapes[celli] = cellsAsShapes[celli].faces();
@@ -408,13 +410,11 @@ void setFaces
     }
 
     faces.setSize(maxFaces);
-    owner.setSize(maxFaces);
-    neighbour.setSize(maxFaces);
 
     label nFaces = 0;
     label nInternalFaces = 0;
 
-    boolList markedFaces(maxFaces);
+    boolList markedFaces(maxFaces, false);
     bool found = false;
 
     labelList patchSizes;
@@ -422,6 +422,8 @@ void setFaces
 
     labelListList PointCells = cellShapePointCells(cellsAsShapes, points);
 
+
+    // Numbering faces of mesh avoiding duplicates
     forAll(cells, celli)
     {
         const faceList& curFaces = cellsFaceShapes[celli];
@@ -507,6 +509,8 @@ void setFaces
     patchSizes.setSize(boundaryFaces.size(), -1);
     patchStarts.setSize(boundaryFaces.size(), -1);
 
+
+    // Building boundaries
     forAll(boundaryFaces, patchi)
     {
         const faceList& patchFaces = boundaryFaces[patchi];
@@ -600,11 +604,10 @@ void setFaces
         }
     }
 
-    // Reset the size of the face list
+    // Setting owner-neighbour pair
     faces.setSize(nFaces);
-
-    Info<< faces << endl;
-    Info<< cells << endl;
+    owner.setSize(nFaces);
+    neighbour.setSize(nFaces);
     
     forAll(cells, celli)
     {
@@ -634,9 +637,6 @@ void setFaces
     }
 
     neighbour.setSize(nInternalFaces);
-
-    Info<< owner << endl;
-    Info<< neighbour << endl;
 }
 
 
