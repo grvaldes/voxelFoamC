@@ -393,8 +393,6 @@ void setFaces
     faceList& faces,
     labelList& owner,
     labelList& neighbour,
-    faceListList& boundaryFaces,
-    wordList& boundaryPatchNames,
     cellList& cells
 )
 {
@@ -416,9 +414,6 @@ void setFaces
 
     boolList markedFaces(maxFaces, false);
     bool found = false;
-
-    labelList patchSizes;
-    labelList patchStarts;
 
     labelListList PointCells = cellShapePointCells(cellsAsShapes, points);
 
@@ -506,87 +501,6 @@ void setFaces
         }
     }
 
-    patchSizes.setSize(boundaryFaces.size(), -1);
-    patchStarts.setSize(boundaryFaces.size(), -1);
-
-
-    // Building boundaries
-    forAll(boundaryFaces, patchi)
-    {
-        const faceList& patchFaces = boundaryFaces[patchi];
-
-        labelList curPatchFaceCells =
-            facePatchFaceCells
-            (
-                patchFaces,
-                PointCells,
-                cellsFaceShapes,
-                patchi
-            );
-
-        // Grab the start label
-        label curPatchStart = nFaces;
-
-        forAll(patchFaces, facei)
-        {
-            const face& curFace = patchFaces[facei];
-
-            const label cellInside = curPatchFaceCells[facei];
-
-            // Get faces of the cell inside
-            const faceList& facesOfCellInside = cellsFaceShapes[cellInside];
-
-            bool found = false;
-
-            forAll(facesOfCellInside, cellFacei)
-            {
-                if (face::sameVertices(facesOfCellInside[cellFacei], curFace))
-                {
-                    if (cells[cellInside][cellFacei] >= 0)
-                    {
-                        FatalErrorInFunction
-                            << "Trying to specify a boundary face " << curFace
-                            << " on the face on cell " << cellInside
-                            << " which is either an internal face or already "
-                            << "belongs to some other patch.  This is face "
-                            << facei << " of patch "
-                            << patchi << " named "
-                            << boundaryPatchNames[patchi] << "."
-                            << abort(FatalError);
-                    }
-
-                    found = true;
-
-                    // Set the patch face to corresponding cell-face
-                    faces[nFaces] = facesOfCellInside[cellFacei];
-
-                    cells[cellInside][cellFacei] = nFaces;
-
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                FatalErrorInFunction
-                    << "face " << facei << " of patch " << patchi
-                    << " does not seem to belong to cell " << cellInside
-                    << " which, according to the addressing, "
-                    << "should be next to it."
-                    << abort(FatalError);
-            }
-
-            // Increment the counter of faces
-            nFaces++;
-        }
-
-        patchSizes[patchi] = nFaces - curPatchStart;
-        patchStarts[patchi] = curPatchStart;
-    }
-
-    Info<< boundaryFaces << endl;
-    Info<< patchSizes << endl;
-    Info<< patchStarts << endl;
 
     forAll(cells, celli)
     {
@@ -762,6 +676,103 @@ void setBoundaryNames(wordList& boundaryPatchNames)
     boundaryPatchNames[3] = "Right";
     boundaryPatchNames[4] = "Top";
     boundaryPatchNames[5] = "Bottom";
+}
+
+
+// Setting boundary elements
+void setBoundaryElems
+(
+    const cellShapeList& cellsAsShapes,
+    const pointField& points,
+    faceListList& boundaryFaces,
+    wordList& boundaryPatchNames,
+    cellList& cells
+)
+{
+    label nFaces = 0;
+    labelList patchSizes;
+    labelList patchStarts;
+
+    patchSizes.setSize(boundaryFaces.size(), -1);
+    patchStarts.setSize(boundaryFaces.size(), -1);
+
+    faceListList cellsFaceShapes(cellsAsShapes.size());
+    labelListList PointCells = cellShapePointCells(cellsAsShapes, points);
+
+
+    // Building boundaries
+    forAll(boundaryFaces, patchi)
+    {
+        const faceList& patchFaces = boundaryFaces[patchi];
+
+        labelList curPatchFaceCells =
+            facePatchFaceCells
+            (
+                patchFaces,
+                PointCells,
+                cellsFaceShapes,
+                patchi
+            );
+
+        // Grab the start label
+        label curPatchStart = nFaces;
+
+        forAll(patchFaces, facei)
+        {
+            const face& curFace = patchFaces[facei];
+
+            const label cellInside = curPatchFaceCells[facei];
+
+            // Get faces of the cell inside
+            const faceList& facesOfCellInside = cellsFaceShapes[cellInside];
+
+            bool found = false;
+
+            forAll(facesOfCellInside, cellFacei)
+            {
+                if (face::sameVertices(facesOfCellInside[cellFacei], curFace))
+                {
+                    if (cells[cellInside][cellFacei] >= 0)
+                    {
+                        FatalErrorInFunction
+                            << "Trying to specify a boundary face " << curFace
+                            << " on the face on cell " << cellInside
+                            << " which is either an internal face or already "
+                            << "belongs to some other patch.  This is face "
+                            << facei << " of patch "
+                            << patchi << " named "
+                            << boundaryPatchNames[patchi] << "."
+                            << abort(FatalError);
+                    }
+
+                    found = true;
+
+                    // Set the patch face to corresponding cell-face
+                    faces[nFaces] = facesOfCellInside[cellFacei];
+
+                    cells[cellInside][cellFacei] = nFaces;
+
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                FatalErrorInFunction
+                    << "face " << facei << " of patch " << patchi
+                    << " does not seem to belong to cell " << cellInside
+                    << " which, according to the addressing, "
+                    << "should be next to it."
+                    << abort(FatalError);
+            }
+
+            // Increment the counter of faces
+            nFaces++;
+        }
+
+        patchSizes[patchi] = nFaces - curPatchStart;
+        patchStarts[patchi] = curPatchStart;
+    }
 }
 
 
