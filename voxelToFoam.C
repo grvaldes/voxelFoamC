@@ -173,7 +173,7 @@ void renumber
 
 // Set which cells are associated to a point
 // Copy from Foam::labelListList Foam::polyMesh::cellShapePointCells
-labelListList cellShapePointCells
+labelListList shapePointCells
 (
     const cellShapeList& cells,
     const pointField& points
@@ -204,6 +204,42 @@ labelListList cellShapePointCells
     }
 
     return pointCellAddr;
+}
+
+
+// Set which cells are associated to a point
+// Copy from Foam::labelListList Foam::polyMesh::cellShapePointCells
+labelListList shapePointFaces
+(
+    const faceList& faces,
+    const pointField& points
+)
+{
+    List<DynamicList<label, primitiveMesh::facesPerPoint_>>
+        pf(points.size());
+
+    forAll(faces, i)
+    {
+        const labelList& labels = faces[i];
+
+        forAll(labels, j)
+        {
+            label curPoint = labels[j];
+            DynamicList<label, primitiveMesh::facesPerPoint_>& curPointFaces =
+                pf[curPoint];
+
+            curPointFaces.append(i);
+        }
+    }
+
+    labelListList pointFaceAddr(pf.size());
+
+    forAll(pf, pointi)
+    {
+        pointFaceAddr[pointi].transfer(pf[pointi]);
+    }
+
+    return pointFaceAddr;
 }
 
 
@@ -680,7 +716,7 @@ void setBoundaryProps
     boundaryPatchNames.set(4,"Top");
     boundaryPatchNames.set(5,"Bottom");
 
-    forAll(boundaryPatchType, patchi)
+    forAll(boundaryPatchNames, patchi)
     {
         boundaryPatchType.set(patchi, "patch");
         boundaryPhysicalType.set(patchi, "patch");
@@ -692,8 +728,6 @@ void setBoundaryProps
 // Hardcoded and ugly, I will find a solution lately.
 void setBoundaryComponents(labelListList& boundaryComponents)
 {
-    boundaryComponents.setSize(FACEHEX);
-
     forAll(boundaryComponents, bc)
     {
         switch (bc)
@@ -769,102 +803,101 @@ void setBoundaryComponents(labelListList& boundaryComponents)
 }
 
 
-// // Setting boundary elements
-// void setBoundaryElems
-// (
-//     const cellShapeList& cellsAsShapes,
-//     const pointField& points,
-//     faceListList& boundaryFaces,
-//     Map<word>& boundaryPatchNames,
-//     wordList& boundaryComponents,
-//     cellList& cells
-// )
-// {
-//     label nFaces = 0;
-//     labelList patchSizes;
-//     labelList patchStarts;
+// Setting boundary elements
+void setBoundaryElems
+(
+    const cellShapeList& cellsAsShapes,
+    const pointField& points,
+    const cellList& cells,
+    const faceList& faces,
+    const Map<word>& boundaryPatchNames,
+    const wordList& boundaryComponents,
+    faceListList& boundaryFaces
+)
+{
+    label nFaces = 0;
 
-//     patchSizes.setSize(boundaryFaces.size(), -1);
-//     patchStarts.setSize(boundaryFaces.size(), -1);
+    patchSizes.setSize(boundaryFaces.size(), -1);
+    patchStarts.setSize(boundaryFaces.size(), -1);
 
-//     faceListList cellsFaceShapes(cellsAsShapes.size());
-//     labelListList PointCells = cellShapePointCells(cellsAsShapes, points);
+    labelListList PointFaces = shapePointFaces(cells, faces);
+    labelListList PointCells = shapePointCells(cellsAsShapes, points);
 
 
-//     // Building boundaries
-//     forAll(boundaryFaces, patchi)
-//     {
-//         const faceList& patchFaces = boundaryFaces[patchi];
+    // Building boundaries
+    forAll(boundaryFaces, patchi)
+    {
+        const faceList& patchFaces = boundaryFaces[patchi];
 
-//         labelList curPatchFaceCells =
-//             facePatchFaceCells
-//             (
-//                 patchFaces,
-//                 PointCells,
-//                 cellsFaceShapes,
-//                 patchi
-//             );
+        labelList curPatchFaceCells =
+            facePatchFaceCells
+            (
+                patchFaces,
+                PointCells,
+                cellsFaceShapes,
+                patchi
+            );
 
-//         // Grab the start label
-//         label curPatchStart = nFaces;
+        // Grab the start label
+        label curPatchStart = nFaces;
 
-//         forAll(patchFaces, facei)
-//         {
-//             const face& curFace = patchFaces[facei];
+        forAll(patchFaces, facei)
+        {
+            const face& curFace = patchFaces[facei];
 
-//             const label cellInside = curPatchFaceCells[facei];
+            const label cellInside = curPatchFaceCells[facei];
 
-//             // Get faces of the cell inside
-//             const faceList& facesOfCellInside = cellsFaceShapes[cellInside];
+            // Get faces of the cell inside
+            const faceList& facesOfCellInside = cellsFaceShapes[cellInside];
 
-//             bool found = false;
+            bool found = false;
 
-//             forAll(facesOfCellInside, cellFacei)
-//             {
-//                 if (face::sameVertices(facesOfCellInside[cellFacei], curFace))
-//                 {
-//                     if (cells[cellInside][cellFacei] >= 0)
-//                     {
-//                         FatalErrorInFunction
-//                             << "Trying to specify a boundary face " << curFace
-//                             << " on the face on cell " << cellInside
-//                             << " which is either an internal face or already "
-//                             << "belongs to some other patch.  This is face "
-//                             << facei << " of patch "
-//                             << patchi << " named "
-//                             << boundaryPatchNames[patchi] << "."
-//                             << abort(FatalError);
-//                     }
+            forAll(facesOfCellInside, cellFacei)
+            {
+                if (face::sameVertices(facesOfCellInside[cellFacei], curFace))
+                {
+                    if (cells[cellInside][cellFacei] >= 0)
+                    {
+                        FatalErrorInFunction
+                            << "Trying to specify a boundary face " << curFace
+                            << " on the face on cell " << cellInside
+                            << " which is either an internal face or already "
+                            << "belongs to some other patch.  This is face "
+                            << facei << " of patch "
+                            << patchi << " named "
+                            << boundaryPatchNames[patchi] << "."
+                            << abort(FatalError);
+                    }
 
-//                     found = true;
+                    found = true;
 
-//                     // Set the patch face to corresponding cell-face
-//                     faces[nFaces] = facesOfCellInside[cellFacei];
+                    // Set the patch face to corresponding cell-face
+                    faces[nFaces] = facesOfCellInside[cellFacei];
 
-//                     cells[cellInside][cellFacei] = nFaces;
+                    cells[cellInside][cellFacei] = nFaces;
 
-//                     break;
-//                 }
-//             }
+                    break;
+                }
+            }
 
-//             if (!found)
-//             {
-//                 FatalErrorInFunction
-//                     << "face " << facei << " of patch " << patchi
-//                     << " does not seem to belong to cell " << cellInside
-//                     << " which, according to the addressing, "
-//                     << "should be next to it."
-//                     << abort(FatalError);
-//             }
+            if (!found)
+            {
+                FatalErrorInFunction
+                    << "face " << facei << " of patch " << patchi
+                    << " does not seem to belong to cell " << cellInside
+                    << " which, according to the addressing, "
+                    << "should be next to it."
+                    << abort(FatalError);
+            }
 
-//             // Increment the counter of faces
-//             nFaces++;
-//         }
+            // Increment the counter of faces
+            nFaces++;
+        }
 
-//         patchSizes[patchi] = nFaces - curPatchStart;
-//         patchStarts[patchi] = curPatchStart;
-//     }
-// }
+        patchSizes[patchi] = nFaces - curPatchStart;
+        patchStarts[patchi] = curPatchStart;
+    }
+}
 
 
 
@@ -916,8 +949,8 @@ int main(int argc, char *argv[])
     Map<word> boundaryPatchNames(FACEHEX);
     Map<word> boundaryTypes(FACEHEX);
     Map<word> boundaryPhysicalTypes(FACEHEX);
-    labelListList boundaryComponents;
-    faceListList boundaryFaces;
+    faceListList boundaryFaces(FACEHEX);
+    labelListList boundaryComponents(FACEHEX);
     // word defaultBoundaryPatchName;
     // word defaultBoundaryPatchType;
 
@@ -978,8 +1011,11 @@ int main(int argc, char *argv[])
         }
     }
 
-    setBoundaryProps(boundaryPatchNames,boundaryTypes,boundaryPhysicalType);
+    setBoundaryProps(boundaryPatchNames,boundaryTypes,boundaryPhysicalTypes);
     setBoundaryComponents(boundaryComponents);
+
+    
+
 
 
     Info<< "Points" << nl << points << "\n\n\n\n" << endl;
@@ -994,6 +1030,8 @@ int main(int argc, char *argv[])
     Info<< "ZoneCells" << nl << zoneCells << "\n\n\n\n" << endl;
     Info<< "ZonePoints" << nl << zonePoints << "\n\n\n\n" << endl;
     Info<< "BoundNames" << nl << boundaryPatchNames << "\n\n\n\n" << endl;
+    Info<< "BoundTypes" << nl << boundaryTypes << "\n\n\n\n" << endl;
+    Info<< "BoundPhysTypes" << nl << boundaryPhysicalTypes << "\n\n\n\n" << endl;
     Info<< "BoundComps" << nl << boundaryComponents << "\n\n\n\n" << endl;
 
 
