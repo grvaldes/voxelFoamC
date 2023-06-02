@@ -370,8 +370,8 @@ void readCells
 {
     const cellModel& hex = *(cellModeller::lookup("hex"));
 
-    face quadPoints(4);
-    labelList hexPoints(8);
+    face quadPoints(NODQUAD);
+    labelList hexPoints(NODHEX);
 
     // cellShapeList cellAsShapes;
 
@@ -714,12 +714,12 @@ void setBoundaryProperties
     List<DynamicList<label>>& zonePoints
 )
 {
-    boundaryPatchNames.set(0,"Right");
-    boundaryPatchNames.set(1,"Left");
-    boundaryPatchNames.set(2,"Back");
-    boundaryPatchNames.set(3,"Front");
-    boundaryPatchNames.set(4,"Top");
-    boundaryPatchNames.set(5,"Bottom");
+    boundaryPatchNames.set(0,"Front");
+    boundaryPatchNames.set(1,"Back");
+    boundaryPatchNames.set(2,"Left");
+    boundaryPatchNames.set(3,"Right");
+    boundaryPatchNames.set(4,"Bottom");
+    boundaryPatchNames.set(5,"Top");
 
     forAll(boundaryPatchNames, patchi)
     {
@@ -733,69 +733,69 @@ void setBoundaryProperties
         {
             case 0:
                 boundaryComponents[bc].append(zonePoints[0]);
+                boundaryComponents[bc].append(zonePoints[6]);
                 boundaryComponents[bc].append(zonePoints[7]);
                 boundaryComponents[bc].append(zonePoints[8]);
-                boundaryComponents[bc].append(zonePoints[11]);
-                boundaryComponents[bc].append(zonePoints[12]);
-                boundaryComponents[bc].append(zonePoints[19]);
-                boundaryComponents[bc].append(zonePoints[23]);
-                boundaryComponents[bc].append(zonePoints[24]);
-                boundaryComponents[bc].append(zonePoints[20]);
+                boundaryComponents[bc].append(zonePoints[9]);
+                boundaryComponents[bc].append(zonePoints[18]);
+                boundaryComponents[bc].append(zonePoints[21]);
+                boundaryComponents[bc].append(zonePoints[22]);
+                boundaryComponents[bc].append(zonePoints[25]);
                 break;
             case 1:
                 boundaryComponents[bc].append(zonePoints[1]);
-                boundaryComponents[bc].append(zonePoints[6]);
-                boundaryComponents[bc].append(zonePoints[9]);
                 boundaryComponents[bc].append(zonePoints[10]);
+                boundaryComponents[bc].append(zonePoints[11]);
+                boundaryComponents[bc].append(zonePoints[12]);
                 boundaryComponents[bc].append(zonePoints[13]);
-                boundaryComponents[bc].append(zonePoints[18]);
-                boundaryComponents[bc].append(zonePoints[21]);
-                boundaryComponents[bc].append(zonePoints[25]);
-                boundaryComponents[bc].append(zonePoints[22]);
+                boundaryComponents[bc].append(zonePoints[19]);
+                boundaryComponents[bc].append(zonePoints[20]);
+                boundaryComponents[bc].append(zonePoints[23]);
+                boundaryComponents[bc].append(zonePoints[24]);
                 break;
             case 2:
                 boundaryComponents[bc].append(zonePoints[2]);
-                boundaryComponents[bc].append(zonePoints[8]);
                 boundaryComponents[bc].append(zonePoints[9]);
-                boundaryComponents[bc].append(zonePoints[15]);
+                boundaryComponents[bc].append(zonePoints[13]);
                 boundaryComponents[bc].append(zonePoints[16]);
-                boundaryComponents[bc].append(zonePoints[21]);
+                boundaryComponents[bc].append(zonePoints[17]);
                 boundaryComponents[bc].append(zonePoints[20]);
+                boundaryComponents[bc].append(zonePoints[21]);
                 boundaryComponents[bc].append(zonePoints[24]);
                 boundaryComponents[bc].append(zonePoints[25]);
                 break;
             case 3:
                 boundaryComponents[bc].append(zonePoints[3]);
-                boundaryComponents[bc].append(zonePoints[6]);
                 boundaryComponents[bc].append(zonePoints[7]);
-                boundaryComponents[bc].append(zonePoints[14]);
-                boundaryComponents[bc].append(zonePoints[17]);
-                boundaryComponents[bc].append(zonePoints[22]);
-                boundaryComponents[bc].append(zonePoints[25]);
-                boundaryComponents[bc].append(zonePoints[24]);
-                boundaryComponents[bc].append(zonePoints[23]);
-                break;
-            case 4:
-                boundaryComponents[bc].append(zonePoints[4]);
-                boundaryComponents[bc].append(zonePoints[12]);
-                boundaryComponents[bc].append(zonePoints[13]);
-                boundaryComponents[bc].append(zonePoints[16]);
-                boundaryComponents[bc].append(zonePoints[17]);
-                boundaryComponents[bc].append(zonePoints[22]);
-                boundaryComponents[bc].append(zonePoints[25]);
-                boundaryComponents[bc].append(zonePoints[24]);
-                boundaryComponents[bc].append(zonePoints[23]);
-                break;
-            case 5:
-                boundaryComponents[bc].append(zonePoints[5]);
-                boundaryComponents[bc].append(zonePoints[10]);
                 boundaryComponents[bc].append(zonePoints[11]);
                 boundaryComponents[bc].append(zonePoints[14]);
                 boundaryComponents[bc].append(zonePoints[15]);
                 boundaryComponents[bc].append(zonePoints[18]);
                 boundaryComponents[bc].append(zonePoints[19]);
+                boundaryComponents[bc].append(zonePoints[22]);
+                boundaryComponents[bc].append(zonePoints[23]);
+                break;
+            case 4:
+                boundaryComponents[bc].append(zonePoints[4]);
+                boundaryComponents[bc].append(zonePoints[6]);
+                boundaryComponents[bc].append(zonePoints[10]);
+                boundaryComponents[bc].append(zonePoints[14]);
+                boundaryComponents[bc].append(zonePoints[17]);
+                boundaryComponents[bc].append(zonePoints[18]);
+                boundaryComponents[bc].append(zonePoints[19]);
                 boundaryComponents[bc].append(zonePoints[20]);
                 boundaryComponents[bc].append(zonePoints[21]);
+                break;
+            case 5:
+                boundaryComponents[bc].append(zonePoints[5]);
+                boundaryComponents[bc].append(zonePoints[8]);
+                boundaryComponents[bc].append(zonePoints[12]);
+                boundaryComponents[bc].append(zonePoints[15]);
+                boundaryComponents[bc].append(zonePoints[16]);
+                boundaryComponents[bc].append(zonePoints[22]);
+                boundaryComponents[bc].append(zonePoints[23]);
+                boundaryComponents[bc].append(zonePoints[24]);
+                boundaryComponents[bc].append(zonePoints[25]);
                 break;
         }
     }
@@ -807,20 +807,23 @@ void setBoundaryElems
 (
     const cellShapeList& cellsAsShapes,
     const pointField& points,
-    const cellList& cells,
-    const faceList& faces,
     const Map<word>& boundaryPatchNames,
     const labelListList& boundaryComponents,
     const List<DynamicList<label>>& zonePoints,
+    cellList& cells,
+    faceList& faces,
+    labelList& owner,
     faceListList& boundaryFaces
 )
 {
     labelListList PointFaces = shapePointFaces(faces, points);
     labelListList PointCells = shapePointCells(cellsAsShapes, points);
 
-    Info<< "PointFaces" << nl << PointFaces << "\n\n\n\n" << endl;
-    Info<< "PointCells" << nl << PointCells << "\n\n\n\n" << endl;
-
+    label nTotalFaces = faces.size();
+    label nNewFaces = 0;
+    Map<label> reorderedFaces;
+    Map<label> reverseReorderedFaces;
+    Map<label> allReorderedFaces;
 
     // Building boundaries
     forAll(boundaryComponents, patchi)
@@ -830,7 +833,7 @@ void setBoundaryElems
 
         forAll(patchPoints, pointi)
         {
-            labelList curFaces = PointFaces[pointi];
+            labelList curFaces = PointFaces[patchPoints[pointi]];
 
             forAll(curFaces, facei)
             {
@@ -850,72 +853,48 @@ void setBoundaryElems
             if (iter() == NODQUAD)
             {
                 boundaryFaces[patchi].append(faces[iter.key()]);
+                reorderedFaces.insert(nNewFaces,iter.key());
+                reverseReorderedFaces.insert(iter.key(), nNewFaces);
+                nTotalFaces--;
+                nNewFaces++;
             }
         }
+    }
 
+    faceList newFaces;
+    labelList newOwner;
+    label ind = 0;
 
-    
-        // Info<< "Iter\n" << itr* << endl;
-        // Info<< "Map\n" << countFaces << endl;
-        // Info<< "Value\n" << countFaces[0] << endl;
+    forAll(faces, facei)
+    {
+        if(!reverseReorderedFaces.found(facei))
+        {
+            newFaces.append(faces[facei]);
+            newOwner.append(owner[facei]);
+            allReorderedFaces.insert(ind, facei);
+            ind++;
+        }
+    }
 
-        // const faceList& patchFaces = boundaryFaces[patchi];
+    forAllIter(Map<label>, reorderedFaces, iter)
+    {
+        newFaces.append(faces[iter()]);
+        newOwner.append(owner[iter()]);
+        allReorderedFaces.insert(ind, iter());
+        ind++;
+    }
 
-        // forAll(patchFaces, facei)
-        // {
-        //     const face& curFace = patchFaces[facei];
+    faces = newFaces;
+    owner = newOwner;
 
-        //     const label cellInside = curPatchFaceCells[facei];
+    forAll(cells, celli)
+    {
+        cell& curCell = cells[celli];
 
-        //     // Get faces of the cell inside
-        //     const faceList& facesOfCellInside = cellsFaceShapes[cellInside];
-
-        //     bool found = false;
-
-        //     forAll(facesOfCellInside, cellFacei)
-        //     {
-        //         if (face::sameVertices(facesOfCellInside[cellFacei], curFace))
-        //         {
-        //             if (cells[cellInside][cellFacei] >= 0)
-        //             {
-        //                 FatalErrorInFunction
-        //                     << "Trying to specify a boundary face " << curFace
-        //                     << " on the face on cell " << cellInside
-        //                     << " which is either an internal face or already "
-        //                     << "belongs to some other patch.  This is face "
-        //                     << facei << " of patch "
-        //                     << patchi << " named "
-        //                     << boundaryPatchNames[patchi] << "."
-        //                     << abort(FatalError);
-        //             }
-
-        //             found = true;
-
-        //             // Set the patch face to corresponding cell-face
-        //             faces[nFaces] = facesOfCellInside[cellFacei];
-
-        //             cells[cellInside][cellFacei] = nFaces;
-
-        //             break;
-        //         }
-        //     }
-
-        //     if (!found)
-        //     {
-        //         FatalErrorInFunction
-        //             << "face " << facei << " of patch " << patchi
-        //             << " does not seem to belong to cell " << cellInside
-        //             << " which, according to the addressing, "
-        //             << "should be next to it."
-        //             << abort(FatalError);
-        //     }
-
-        //     // Increment the counter of faces
-        //     nFaces++;
-        // }
-
-        // patchSizes[patchi] = nFaces - curPatchStart;
-        // patchStarts[patchi] = curPatchStart;
+        forAll(curCell, facei)
+        {
+            curCell[facei] = allReorderedFaces[curCell[facei]];
+        }
     }
 }
 
@@ -971,8 +950,6 @@ int main(int argc, char *argv[])
     Map<word> boundaryPhysicalTypes(FACEHEX);
     faceListList boundaryFaces(FACEHEX);
     labelListList boundaryComponents(FACEHEX);
-    // word defaultBoundaryPatchName;
-    // word defaultBoundaryPatchType;
 
     // Name of zones.
     Map<word> elementSets;
@@ -1062,293 +1039,48 @@ int main(int argc, char *argv[])
     (
         cellAsShapes,
         points,
-        cells,
-        faces,
         boundaryPatchNames,
         boundaryComponents,
         zonePoints,
-        boundaryFaces
+        cells,
+        faces,
+        owner
     );
 
+    // reorderFaces
+    // (
+    //     points,
+    //     cells,
+    //     faces,
+    //     owner,
+    //     boundaryFaces
+    // )
+
     Info<< "BoundFaces" << nl << boundaryFaces << "\n\n\n\n" << endl;
-
-    //Info << "Final value of line was: " << line << endl;
-    // label nValidCellZones = 0;
-
-    // forAll(zoneCells, zoneI)
-    // {
-    //     if (zoneCells[zoneI].size())
-    //     {
-    //         nValidCellZones++;
-    //     }
-    // }
+    Info<< "NewFaces" << nl << faces << "\n\n\n\n" << endl;
+    Info<< "NewOwner" << nl << owner << "\n\n\n\n" << endl;
+    Info<< "NewCells" << nl << cells << "\n\n\n\n" << endl;
 
 
-    // // Problem is that the orientation of the patchFaces does not have to
-    // // be consistent with the outwards orientation of the mesh faces. So
-    // // we have to construct the mesh in two stages:
-    // // 1. define mesh with all boundary faces in one patch
-    // // 2. use the read patchFaces to find the corresponding boundary face
-    // //    and repatch it.
+    polyMesh mesh
+    (
+        IOobject
+        (
+            polyMesh::defaultRegion,
+            runTime.constant(),
+            runTime
+        ),
+        move(points),
+        move(faces),
+        move(owner),
+        move(neighbour)
+    );
 
+    
 
-    // // Create correct number of patches
-    // // (but without any faces in it)
-    // faceListList boundaryFaces(patchFaces.size());
+    mesh.write();
 
-    // wordList boundaryPatchNames(boundaryFaces.size());
-
-    // forAll(boundaryPatchNames, patchi)
-    // {
-    //     label physReg = patchToNset[patchi];
-
-    //     Map<word>::const_iterator iter = elementSets.find(physReg);
-
-    //     if (iter != elementSets.end())
-    //     {
-    //         boundaryPatchNames[patchi] = iter();
-    //     }
-    //     else
-    //     {
-    //         boundaryPatchNames[patchi] = word("patch") + name(patchi);
-    //     }
-    //     Info<< "Patch " << patchi << " gets name "
-    //         << boundaryPatchNames[patchi] << endl;
-    // }
-    // Info<< endl;
-
-    // wordList boundaryTypes(boundaryFaces.size(), polyPatch::typeName);
-    // word defaultFacesName = "defaultFaces";
-    // word defaultFacesType = polyPatch::typeName;
-    // wordList boundaryPhysicalTypes
-    // (
-    //     boundaryFaces.size(),
-    //     polyPatch::typeName
-    // );
-
-    // polyMesh mesh
-    // (
-    //     IOobject
-    //     (
-    //         regionName,
-    //         runTime.constant(),
-    //         runTime
-    //     ),
-    //     move(points),
-    //     faces,
-    //     cells
-    // );
-
-    // repatchPolyTopoChanger repatcher(mesh);
-
-    // // Now use the patchFaces to patch up the outside faces of the mesh.
-
-    // // Get the patch for all the outside faces (= default patch added as last)
-    // const polyPatch& pp = mesh.boundaryMesh().last();
-
-    // // Storage for faceZones.
-    // List<DynamicList<label>> zoneFaces(patchFaces.size    // polyMesh mesh
-    // (
-    //     IOobject
-    //     (
-    //         regionName,
-    //         runTime.constant(),
-    //         runTime
-    //     ),
-    //     move(points),
-    //     faces,
-    //     cells
-    // );());
-
-
-    // // Go through all the patchFaces and find corresponding face in pp.
-    // forAll(patchFaces, patchi)
-    // {
-    //     const DynamicList<face>& pFaces = patchFaces[patchi];
-
-    //     Info<< "Finding faces of patch " << patchi << endl;
-
-    //     forAll(pFaces, i)
-    //     {
-    //         const face& f = pFaces[i];
-
-    //         // Find face in pp using all vertices of f.
-    //         label patchFacei = findFace(pp, f);
-
-    //         if (patchFacei != -1)
-    //         {
-    //             label meshFacei = pp.start() + patchFacei;
-
-    //             repatcher.changePatchID(meshFacei, patchi);
-    //         }
-    //         else
-    //         {
-    //             // Maybe internal face? If so add to faceZone with same index
-    //             // - might be useful.
-    //             label meshFacei = findInternalFace(mesh, f);
-
-    //             if (meshFacei != -1)
-    //             {
-    //                 zoneFaces[patchi].append(meshFacei);
-    //             }
-    //             else
-    //             {
-    //                 WarningInFunction
-    //                     << "Could not match gmsh face " << f
-    //                     << " to any of the interior or exterior faces"
-    //                     << " that share the same 0th point" << endl;
-    //             }
-    //         }
-    //     }
-    // }
-    // Info<< nl;
-
-    // // Face zones
-    // label nValidFaceZones = 0;
-
-    // Info<< "FaceZones:" << nl
-    //     << "Zone\tSize" << endl;
-
-    // forAll(zoneFaces, zoneI)
-    // {
-    //     zoneFaces[zoneI].shrink();
-
-    //     const labelList& zFaces = zoneFaces[zoneI];
-
-    //     if (zFaces.size())
-    //     {
-    //         nValidFaceZones++;
-
-    //         Info<< "    " << zoneI << '\t' << zFaces.size() << endl;
-    //     }
-    // }
-    // Info<< endl;
-
-
-    // // Get polyMesh to write to constant
-
-    // runTime.setTime(instant(runTime.constant()), 0);
-
-    // repatcher.repatch();
-
-    // List<cellZone*> cz;
-    // List<faceZone*> fz;
-
-    // // Construct and add the zones. Note that cell ordering does not change
-    // // because of repatch() and neither does internal faces so we can
-    // // use the zoneCells/zoneFaces as is.
-
-    // if (nValidCellZones > 0)
-    // {
-    //     cz.setSize(nValidCellZones);
-
-    //     nValidCellZones = 0;
-
-    //     forAll(zoneCells, zoneI)
-    //     {
-    //         if (zoneCells[zoneI].size())
-    //         {
-    //             label physReg = zoneToElset[zoneI];
-
-    //             Map<word>::const_iterator iter = elementSets.find(physReg);
-
-    //             word zoneName = "cellZone_" + name(zoneI);
-    //             if (iter != elementSets.end())
-    //             {
-    //                 zoneName = iter();
-    //             }
-
-    //             Info<< "Writing zone " << zoneI << " to cellZone "
-    //                 << zoneName << " and cellSet"
-    //                 << endl;
-
-    //             cellSet cset(mesh, zoneName, zoneCells[zoneI]);
-    //             cset.write();
-
-    //             cz[nValidCellZones] = new cellZone
-    //             (
-    //                 zoneName,
-    //                 zoneCells[zoneI],
-    //                 nValidCellZones,
-    //                 mesh.cellZones()
-    //             );
-    //             nValidCellZones++;
-    //         }
-    //     }
-    // }
-
-    // if (nValidFaceZones > 0)
-    // {
-    //     fz.setSize(nValidFaceZones);
-
-    //     nValidFaceZones = 0;
-
-    //     forAll(zoneFaces, zoneI)
-    //     {
-    //         if (zoneFaces[zoneI].size())
-    //         {
-    //             label physReg = patchToNset[zoneI];
-
-    //             Map<word>::const_iterator iter = elementSets.find(physReg);
-
-    //             word zoneName = "faceZone_" + name(zoneI);
-    //             if (iter != elementSets.end())
-    //             {
-    //                 zoneName = iter();
-    //             }
-
-    //             Info<< "Writing zone " << zoneI << " to faceZone "
-    //                 << zoneName << " and faceSet"
-    //                 << endl;
-
-    //             faceSet fset(mesh, zoneName, zoneFaces[zoneI]);
-    //             fset.write();
-
-    //             fz[nValidFaceZones] = new faceZone
-    //             (
-    //                 zoneName,
-    //                 zoneFaces[zoneI],
-    //                 boolList(zoneFaces[zoneI].size(), true),
-    //                 nValidFaceZones,
-    //                 mesh.faceZones()
-    //             );
-    //             nValidFaceZones++;
-    //         }
-    //     }
-    // }
-
-    // if (cz.size() || fz.size())
-    // {
-    //     mesh.addZones(List<pointZone*>(0), fz, cz);
-    // }
-
-    // // Remove empty defaultFaces
-    // label defaultPatchID = mesh.boundaryMesh().findPatchID(defaultFacesName);
-    // if (mesh.boundaryMesh()[defaultPatchID].size() == 0)
-    // {
-    //     List<polyPatch*> newPatchPtrList((mesh.boundaryMesh().size() - 1));
-    //     label newPatchi = 0;
-    //     forAll(mesh.boundaryMesh(), patchi)
-    //     {
-    //         if (patchi != defaultPatchID)
-    //         {
-    //             const polyPatch& patch = mesh.boundaryMesh()[patchi];
-
-    //             newPatchPtrList[newPatchi] = patch.clone
-    //             (
-    //                 mesh.boundaryMesh(),
-    //                 newPatchi,
-    //                 patch.size(),
-    //                 patch.start()
-    //             ).ptr();
-
-    //             newPatchi++;
-    //         }
-    //     }
-    //     repatcher.changePatches(newPatchPtrList);
-    // }
-
-    // mesh.write();
+    Info<< "Mesh" << nl << mesh.bounds() << "\n\n\n\n" << endl;
 
     Info<< "End\n" << endl;
 
