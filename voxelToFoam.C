@@ -609,7 +609,7 @@ void readElSet
         zoneCells.setSize(zoneI+1);
         
         Info<< "Mapping Element Set " << regionName
-            << " to Foam cellZone " << zoneI 
+            << " to Foam pointZone " << zoneI 
             << " from line " << inFile.lineNumber()
             << endl;
 
@@ -667,7 +667,7 @@ void readNSet
         zonePoints.setSize(zoneI+1);
         
         Info<< "Mapping Point Set " << regionName
-            << " to Foam cellZone " << zoneI 
+            << " to Foam pointZone " << zoneI 
             << " from line " << inFile.lineNumber()
             << endl;
 
@@ -714,12 +714,12 @@ void setBoundaryProperties
     List<DynamicList<label>>& zonePoints
 )
 {
-    boundaryPatchNames.set(0,"Front");
-    boundaryPatchNames.set(1,"Back");
-    boundaryPatchNames.set(2,"Left");
-    boundaryPatchNames.set(3,"Right");
-    boundaryPatchNames.set(4,"Bottom");
-    boundaryPatchNames.set(5,"Top");
+    boundaryPatchNames.set(0,"Right");
+    boundaryPatchNames.set(1,"Left");
+    boundaryPatchNames.set(2,"Back");
+    boundaryPatchNames.set(3,"Front");
+    boundaryPatchNames.set(4,"Top");
+    boundaryPatchNames.set(5,"Bottom");
 
     forAll(boundaryPatchNames, patchi)
     {
@@ -733,32 +733,32 @@ void setBoundaryProperties
         {
             case 0:
                 boundaryComponents[bc].append(zonePoints[0]);
-                boundaryComponents[bc].append(zonePoints[6]);
                 boundaryComponents[bc].append(zonePoints[7]);
                 boundaryComponents[bc].append(zonePoints[8]);
-                boundaryComponents[bc].append(zonePoints[9]);
-                boundaryComponents[bc].append(zonePoints[18]);
-                boundaryComponents[bc].append(zonePoints[21]);
-                boundaryComponents[bc].append(zonePoints[22]);
-                boundaryComponents[bc].append(zonePoints[25]);
-                break;
-            case 1:
-                boundaryComponents[bc].append(zonePoints[1]);
-                boundaryComponents[bc].append(zonePoints[10]);
                 boundaryComponents[bc].append(zonePoints[11]);
                 boundaryComponents[bc].append(zonePoints[12]);
-                boundaryComponents[bc].append(zonePoints[13]);
                 boundaryComponents[bc].append(zonePoints[19]);
                 boundaryComponents[bc].append(zonePoints[20]);
                 boundaryComponents[bc].append(zonePoints[23]);
                 boundaryComponents[bc].append(zonePoints[24]);
                 break;
+            case 1:
+                boundaryComponents[bc].append(zonePoints[1]);
+                boundaryComponents[bc].append(zonePoints[9]);
+                boundaryComponents[bc].append(zonePoints[6]);
+                boundaryComponents[bc].append(zonePoints[10]);
+                boundaryComponents[bc].append(zonePoints[13]);
+                boundaryComponents[bc].append(zonePoints[18]);
+                boundaryComponents[bc].append(zonePoints[21]);
+                boundaryComponents[bc].append(zonePoints[22]);
+                boundaryComponents[bc].append(zonePoints[25]);
+                break;
             case 2:
                 boundaryComponents[bc].append(zonePoints[2]);
-                boundaryComponents[bc].append(zonePoints[9]);
-                boundaryComponents[bc].append(zonePoints[13]);
+                boundaryComponents[bc].append(zonePoints[15]);
                 boundaryComponents[bc].append(zonePoints[16]);
-                boundaryComponents[bc].append(zonePoints[17]);
+                boundaryComponents[bc].append(zonePoints[8]);
+                boundaryComponents[bc].append(zonePoints[9]);
                 boundaryComponents[bc].append(zonePoints[20]);
                 boundaryComponents[bc].append(zonePoints[21]);
                 boundaryComponents[bc].append(zonePoints[24]);
@@ -766,10 +766,10 @@ void setBoundaryProperties
                 break;
             case 3:
                 boundaryComponents[bc].append(zonePoints[3]);
-                boundaryComponents[bc].append(zonePoints[7]);
-                boundaryComponents[bc].append(zonePoints[11]);
                 boundaryComponents[bc].append(zonePoints[14]);
-                boundaryComponents[bc].append(zonePoints[15]);
+                boundaryComponents[bc].append(zonePoints[17]);
+                boundaryComponents[bc].append(zonePoints[6]);
+                boundaryComponents[bc].append(zonePoints[7]);
                 boundaryComponents[bc].append(zonePoints[18]);
                 boundaryComponents[bc].append(zonePoints[19]);
                 boundaryComponents[bc].append(zonePoints[22]);
@@ -777,25 +777,25 @@ void setBoundaryProperties
                 break;
             case 4:
                 boundaryComponents[bc].append(zonePoints[4]);
-                boundaryComponents[bc].append(zonePoints[6]);
-                boundaryComponents[bc].append(zonePoints[10]);
-                boundaryComponents[bc].append(zonePoints[14]);
-                boundaryComponents[bc].append(zonePoints[17]);
-                boundaryComponents[bc].append(zonePoints[18]);
-                boundaryComponents[bc].append(zonePoints[19]);
-                boundaryComponents[bc].append(zonePoints[20]);
-                boundaryComponents[bc].append(zonePoints[21]);
-                break;
-            case 5:
-                boundaryComponents[bc].append(zonePoints[5]);
-                boundaryComponents[bc].append(zonePoints[8]);
-                boundaryComponents[bc].append(zonePoints[12]);
-                boundaryComponents[bc].append(zonePoints[15]);
                 boundaryComponents[bc].append(zonePoints[16]);
+                boundaryComponents[bc].append(zonePoints[17]);
+                boundaryComponents[bc].append(zonePoints[12]);
+                boundaryComponents[bc].append(zonePoints[13]);
                 boundaryComponents[bc].append(zonePoints[22]);
                 boundaryComponents[bc].append(zonePoints[23]);
                 boundaryComponents[bc].append(zonePoints[24]);
                 boundaryComponents[bc].append(zonePoints[25]);
+                break;
+            case 5:
+                boundaryComponents[bc].append(zonePoints[5]);
+                boundaryComponents[bc].append(zonePoints[14]);
+                boundaryComponents[bc].append(zonePoints[15]);
+                boundaryComponents[bc].append(zonePoints[10]);
+                boundaryComponents[bc].append(zonePoints[11]);
+                boundaryComponents[bc].append(zonePoints[18]);
+                boundaryComponents[bc].append(zonePoints[19]);
+                boundaryComponents[bc].append(zonePoints[20]);
+                boundaryComponents[bc].append(zonePoints[21]);
                 break;
         }
     }
@@ -807,9 +807,7 @@ void setBoundaryElems
 (
     const cellShapeList& cellsAsShapes,
     const pointField& points,
-    const Map<word>& boundaryPatchNames,
     const labelListList& boundaryComponents,
-    const List<DynamicList<label>>& zonePoints,
     cellList& cells,
     faceList& faces,
     labelList& owner,
@@ -905,6 +903,15 @@ int main(int argc, char *argv[])
 {
     argList::noParallel();
     argList::validArgs.append(".inp file");
+    argList::addOption
+    (
+        "repeat",
+        "vector",
+        "repeats the mesh in XYZ by the specified vector "
+        "- eg '(2 2 2)'"
+    );
+    argList::addBoolOption("pointZones", "Adds pointZones in the mesh.");
+    argList::addBoolOption("debug", "Adds pointZones in the mesh.");
 
     #include "addRegionOption.H"
     #include "setRootCase.H"
@@ -925,6 +932,9 @@ int main(int argc, char *argv[])
     IFstream inFile(args[1]);
     bool nodesNotRead(true);
     bool elemsNotRead(true);
+
+    const bool debug = args.optionFound("debug");
+    const bool pz = args.optionFound("pointZones");
 
     // Storage for points
     pointField points;
@@ -950,6 +960,9 @@ int main(int argc, char *argv[])
     Map<word> boundaryPhysicalTypes(FACEHEX);
     faceListList boundaryFaces(FACEHEX);
     labelListList boundaryComponents(FACEHEX);
+    List<polyPatch*> boundaryPatches;
+    List<pointZone*> pointZones;
+    List<cellZone*> cellZones;
 
     // Name of zones.
     Map<word> elementSets;
@@ -1018,49 +1031,38 @@ int main(int argc, char *argv[])
     );
 
 
-    Info<< "Points" << nl << points << "\n\n\n\n" << endl;
-    Info<< "Cells" << nl << cells << "\n\n\n\n" << endl;
-    Info<< "Faces" << nl << faces << "\n\n\n\n" << endl;
-    Info<< "Owner" << nl << owner << "\n\n\n\n" << endl;
-    Info<< "Neighbour" << nl << neighbour << "\n\n\n\n" << endl;
-    Info<< "ElSets" << nl << elementSets << "\n\n\n\n" << endl;
-    Info<< "NSets" << nl << pointSets << "\n\n\n\n" << endl;
-    Info<< "CellAsShapes" << nl << cellAsShapes << "\n\n\n\n" << endl;
-    Info<< "TexToFoam" << nl << texgenToFoam << "\n\n\n\n" << endl;
-    Info<< "ZoneCells" << nl << zoneCells << "\n\n\n\n" << endl;
-    Info<< "ZonePoints" << nl << zonePoints << "\n\n\n\n" << endl;
-    Info<< "BoundNames" << nl << boundaryPatchNames << "\n\n\n\n" << endl;
-    Info<< "BoundTypes" << nl << boundaryTypes << "\n\n\n\n" << endl;
-    Info<< "BoundPhysTypes" << nl << boundaryPhysicalTypes << "\n\n\n\n" << endl;
-    Info<< "BoundComps" << nl << boundaryComponents << "\n\n\n\n" << endl;
+    if (debug)
+    {
+        Info<< "Points" << nl << points << "\n\n\n\n" << endl;
+        Info<< "Cells" << nl << cells << "\n\n\n\n" << endl;
+        Info<< "Faces" << nl << faces << "\n\n\n\n" << endl;
+        Info<< "Owner" << nl << owner << "\n\n\n\n" << endl;
+        Info<< "Neighbour" << nl << neighbour << "\n\n\n\n" << endl;
+        Info<< "CellAsShapes" << nl << cellAsShapes << "\n\n\n\n" << endl;
+        Info<< "ZoneCells" << nl << zoneCells << "\n\n\n\n" << endl;
+        Info<< "ZonePoints" << nl << zonePoints << "\n\n\n\n" << endl;
+        Info<< "BoundComps" << nl << boundaryComponents << "\n\n\n\n" << endl;
+    }
 
 
     setBoundaryElems
     (
         cellAsShapes,
         points,
-        boundaryPatchNames,
         boundaryComponents,
-        zonePoints,
         cells,
         faces,
-        owner
+        owner,
+        boundaryFaces
     );
 
-    // reorderFaces
-    // (
-    //     points,
-    //     cells,
-    //     faces,
-    //     owner,
-    //     boundaryFaces
-    // )
-
-    Info<< "BoundFaces" << nl << boundaryFaces << "\n\n\n\n" << endl;
-    Info<< "NewFaces" << nl << faces << "\n\n\n\n" << endl;
-    Info<< "NewOwner" << nl << owner << "\n\n\n\n" << endl;
-    Info<< "NewCells" << nl << cells << "\n\n\n\n" << endl;
-
+    if (debug)
+    {
+        Info<< "BoundFaces" << nl << boundaryFaces << "\n\n\n\n" << endl;
+        Info<< "NewFaces" << nl << faces << "\n\n\n\n" << endl;
+        Info<< "NewOwner" << nl << owner << "\n\n\n\n" << endl;
+        Info<< "NewCells" << nl << cells << "\n\n\n\n" << endl;
+    }
 
     polyMesh mesh
     (
@@ -1076,12 +1078,96 @@ int main(int argc, char *argv[])
         move(neighbour)
     );
 
-    
+    label nFace = mesh.faceNeighbour().size();
+
+    forAll(boundaryFaces, patchi)
+    {
+        boundaryPatches.append(
+            new polyPatch
+            (
+                boundaryPatchNames[patchi],
+                boundaryFaces[patchi].size(),
+                nFace,
+                nFace,
+                mesh.boundaryMesh(),
+                boundaryTypes[patchi]
+            )
+        );
+
+        nFace += boundaryFaces[patchi].size();
+    }
+
+    mesh.addPatches(boundaryPatches);
+
+    forAll(zoneCells, zonei)
+    {
+        cellZones.append
+        (
+            new cellZone
+            (
+                elementSets[zonei],
+                zoneCells[zonei],
+                zonei,
+                mesh.cellZones()
+            )
+        );
+    }
+
+    if (pz)
+    {
+        forAll(zonePoints, zonei)
+        {
+            pointZones.append
+            (
+                new pointZone
+                (
+                    pointSets[zonei],
+                    zonePoints[zonei],
+                    zonei,
+                    mesh.pointZones()
+                )
+            );
+        }
+    }
+
+    mesh.addZones(pointZones, List<faceZone*>(0), cellZones);
+
+    Info<< "Finished creating the mesh." << endl;
+
+    vector reps;
+    if (args.optionReadIfPresent("repeat", reps))
+    {
+        Info<< "Repeating mesh of the cell." << nl <<
+        "X direction: "<< reps[0] << nl <<
+        "Y direction: "<< reps[1] << nl <<
+        "Z direction: "<< reps[2] << nl << endl;
+        
+        // polyMesh newMesh(mesh);
+
+        for(label i=0; i < reps[0]; i++)
+        {
+            // boundBox meshBounds = newMesh.bounds();
+            // polyMesh addMesh(mesh);
+
+            // const pointField& addPoints = addMesh.points();
+            // Vector<scalar> transf = ( (meshBounds.max() - meshBounds.min())[0], 0, 0 );
+            // addPoints = addPoints + transf;
+
+        }
+
+        for(label j=0; j < reps[1]; j++)
+        {
+            
+        }
+
+        for(label k=0; k < reps[2]; k++)
+        {
+            
+        }
+
+    }
 
     mesh.write();
-
-    Info<< "Mesh" << nl << mesh.bounds() << "\n\n\n\n" << endl;
-
     Info<< "End\n" << endl;
 
     return 0;
