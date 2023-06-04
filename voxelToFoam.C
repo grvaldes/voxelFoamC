@@ -330,7 +330,7 @@ void readPoints
 
         if (line(1) == "*")
         {
-            Info<< "Finished reading nodes. Vertices read:"
+            Info<< "Finished reading nodes. Vertices read: "
                 << texgenToFoam.size() << "\n"
                 << endl;
             break;
@@ -410,7 +410,7 @@ void readCells
         celli++;
     }
 
-    if (cells.size() == 0)
+    if (cells.size() == 0 || cellAsShapes.size() == 0)
     {
         FatalIOErrorInFunction(inFile)
             << "No cells read from file " << inFile.name() << nl
@@ -972,6 +972,9 @@ int main(int argc, char *argv[])
     string line;
     inFile.getLine(line);
 
+    double previous_time = runTime.elapsedCpuTime();
+    double current_time = runTime.elapsedCpuTime();
+
     while (inFile.good())
     {   
         if (line(8) == "*Heading")
@@ -980,11 +983,23 @@ int main(int argc, char *argv[])
         }
         else if (line(5) == "*Node" && nodesNotRead)
         {
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            
             readPoints(inFile, line, points, texgenToFoam);
             nodesNotRead = false;
+
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            Info<< "\nReading nodes took " 
+                << (current_time - previous_time) << " seconds.\n"
+                << endl;
         }
         else if (line(8) == "*Element" && elemsNotRead)
         {
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            
             readCells
             (
                 inFile,
@@ -994,6 +1009,15 @@ int main(int argc, char *argv[])
                 cellAsShapes,
                 cells
             );
+
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            Info<< "\nReading elements took " 
+                << (current_time - previous_time) << " seconds.\n"
+                << endl;
+
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
 
             setFaces
             (
@@ -1006,14 +1030,35 @@ int main(int argc, char *argv[])
             );
 
             elemsNotRead = false;
+
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            Info<< "\nSetting faces took " 
+                << (current_time - previous_time) << " seconds.\n"
+                << endl;
         }
         else if (line(6) == "*ElSet")
         {
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+
             readElSet(inFile, line, elementSets, zoneCells);
+
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            Info<< "\nReading element sets took " 
+                << (current_time - previous_time) << " seconds.\n"
+                << endl;
         }
         else if (line(5) == "*NSet")
         {
             readNSet(inFile, line, pointSets, texgenToFoam, zonePoints);
+
+            previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            Info<< "\nReading point sets took " 
+                << (current_time - previous_time) << " seconds.\n"
+                << endl;
         }
         else
         {
@@ -1021,7 +1066,11 @@ int main(int argc, char *argv[])
         }
     }
 
-    setBoundaryProperties
+
+    previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            
+            setBoundaryProperties
     (
         boundaryPatchNames,
         boundaryTypes,
@@ -1030,6 +1079,11 @@ int main(int argc, char *argv[])
         zonePoints
     );
 
+    previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            Info<< "\nSetting boundary properties took " 
+                << (current_time - previous_time) << " seconds.\n"
+                << endl;
 
     if (debug)
     {
@@ -1045,7 +1099,10 @@ int main(int argc, char *argv[])
     }
 
 
-    setBoundaryElems
+    previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            
+            setBoundaryElems
     (
         cellAsShapes,
         points,
@@ -1056,6 +1113,12 @@ int main(int argc, char *argv[])
         boundaryFaces
     );
 
+    previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            Info<< "\nSetting boundaries elements took " 
+                << (current_time - previous_time) << " seconds.\n"
+                << endl;
+
     if (debug)
     {
         Info<< "BoundFaces" << nl << boundaryFaces << "\n\n\n\n" << endl;
@@ -1064,7 +1127,10 @@ int main(int argc, char *argv[])
         Info<< "NewCells" << nl << cells << "\n\n\n\n" << endl;
     }
 
-    polyMesh mesh
+    previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            
+            polyMesh mesh
     (
         IOobject
         (
@@ -1133,6 +1199,12 @@ int main(int argc, char *argv[])
     mesh.addZones(pointZones, List<faceZone*>(0), cellZones);
 
     Info<< "Finished creating the mesh." << endl;
+
+    previous_time = current_time;
+            current_time = runTime.elapsedCpuTime();
+            Info<< "\nCreating took " 
+                << (current_time - previous_time) << " seconds.\n"
+                << endl;
 
     vector reps;
     if (args.optionReadIfPresent("repeat", reps))
