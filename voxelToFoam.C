@@ -49,6 +49,7 @@ Description
 #include "polyMesh.H"
 #include "Time.H"
 #include "polyMesh.H"
+#include "mergePolyMesh.H"
 #include "IFstream.H"
 #include "cellModeller.H"
 #include "repatchPolyTopoChanger.H"
@@ -64,6 +65,8 @@ static label SIZE_NOT_DEFINED = 0;
 static label NODQUAD = 4;
 static label FACEHEX = 6;
 static label NODHEX  = 8;
+
+enum axisDir { dirX, dirY, dirZ };
 
 
 // Comma delimited row parsing.
@@ -897,240 +900,24 @@ void setBoundaryElems
 }
 
 
-
-
-int main(int argc, char *argv[])
-{
-    argList::noParallel();
-    argList::validArgs.append(".inp file");
-    argList::addOption
-    (
-        "repeat",
-        "vector",
-        "repeats the mesh in XYZ by the specified vector "
-        "- eg '(2 2 2)'"
-    );
-    argList::addBoolOption("pointZones", "Adds pointZones in the mesh.");
-    argList::addBoolOption("debug", "Adds pointZones in the mesh.");
-
-    #include "addRegionOption.H"
-    #include "setRootCase.H"
-    #include "createTime.H"
-
-    Foam::word regionName;
-
-    if (args.optionReadIfPresent("region", regionName))
-    {
-        Foam::Info
-            << "Creating polyMesh for region " << regionName << endl;
-    }
-    else
-    {
-        regionName = Foam::polyMesh::defaultRegion;
-    }
-
-    IFstream inFile(args[1]);
-    bool nodesNotRead(true);
-    bool elemsNotRead(true);
-
-    const bool debug = args.optionFound("debug");
-    const bool pz = args.optionFound("pointZones");
-
-    // Storage for points
-    pointField points;
-    Map<label> texgenToFoam;
-
-    // Storage for all cells.
-    cellShapeList cellAsShapes;
-    cellList cells;
-
-    // Storage for all faces.
-    faceList faces;
-    labelList owner;
-    labelList neighbour;
-
-    // Storage for zones.
-    List<DynamicList<face>> patchFaces(0);
-    List<DynamicList<label>> zoneCells(0);
-    List<DynamicList<label>> zonePoints(0);
-
-    // Storage for boundaries.
-    Map<word> boundaryPatchNames(FACEHEX);
-    Map<word> boundaryTypes(FACEHEX);
-    Map<word> boundaryPhysicalTypes(FACEHEX);
-    faceListList boundaryFaces(FACEHEX);
-    labelListList boundaryComponents(FACEHEX);
+polyMesh createMesh
+(
+    pointField& points,
+    faceList& faces,
+    labelList& owner,
+    labelList& neighbour,
+    labelList& patchSizes,
+    labelList& patchStarts,
+    const Map<word>& boundaryPatchNames,
+    const Map<word>& boundaryTypes,
+    const faceListList& boundaryFaces,
+    const Time& runTime
+)
+{  
     List<polyPatch*> boundaryPatches;
-    List<pointZone*> pointZones;
-    List<cellZone*> cellZones;
+    label nFace = neighbour.size();
 
-    // Name of zones.
-    Map<word> elementSets;
-    Map<word> pointSets;
-    Map<word> faceSets;
-
-    string line;
-    inFile.getLine(line);
-
-    double previous_time = runTime.elapsedCpuTime();
-    double current_time = runTime.elapsedCpuTime();
-
-    while (inFile.good())
-    {   
-        if (line(8) == "*Heading")
-        {
-            readFileHeading(inFile, line);
-        }
-        else if (line(5) == "*Node" && nodesNotRead)
-        {
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            
-            readPoints(inFile, line, points, texgenToFoam);
-            nodesNotRead = false;
-
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            Info<< "\nReading nodes took " 
-                << (current_time - previous_time) << " seconds.\n"
-                << endl;
-        }
-        else if (line(8) == "*Element" && elemsNotRead)
-        {
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            
-            readCells
-            (
-                inFile,
-                line,
-                points,
-                texgenToFoam,
-                cellAsShapes,
-                cells
-            );
-
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            Info<< "\nReading elements took " 
-                << (current_time - previous_time) << " seconds.\n"
-                << endl;
-
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-
-            setFaces
-            (
-                cellAsShapes, 
-                points, 
-                faces, 
-                owner, 
-                neighbour,
-                cells
-            );
-
-            elemsNotRead = false;
-
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            Info<< "\nSetting faces took " 
-                << (current_time - previous_time) << " seconds.\n"
-                << endl;
-        }
-        else if (line(6) == "*ElSet")
-        {
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-
-            readElSet(inFile, line, elementSets, zoneCells);
-
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            Info<< "\nReading element sets took " 
-                << (current_time - previous_time) << " seconds.\n"
-                << endl;
-        }
-        else if (line(5) == "*NSet")
-        {
-            readNSet(inFile, line, pointSets, texgenToFoam, zonePoints);
-
-            previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            Info<< "\nReading point sets took " 
-                << (current_time - previous_time) << " seconds.\n"
-                << endl;
-        }
-        else
-        {
-            inFile.getLine(line);
-        }
-    }
-
-
-    previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            
-            setBoundaryProperties
-    (
-        boundaryPatchNames,
-        boundaryTypes,
-        boundaryPhysicalTypes,
-        boundaryComponents, 
-        zonePoints
-    );
-
-    previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            Info<< "\nSetting boundary properties took " 
-                << (current_time - previous_time) << " seconds.\n"
-                << endl;
-
-    if (debug)
-    {
-        Info<< "Points" << nl << points << "\n\n\n\n" << endl;
-        Info<< "Cells" << nl << cells << "\n\n\n\n" << endl;
-        Info<< "Faces" << nl << faces << "\n\n\n\n" << endl;
-        Info<< "Owner" << nl << owner << "\n\n\n\n" << endl;
-        Info<< "Neighbour" << nl << neighbour << "\n\n\n\n" << endl;
-        Info<< "CellAsShapes" << nl << cellAsShapes << "\n\n\n\n" << endl;
-        Info<< "ZoneCells" << nl << zoneCells << "\n\n\n\n" << endl;
-        Info<< "ZonePoints" << nl << zonePoints << "\n\n\n\n" << endl;
-        Info<< "BoundComps" << nl << boundaryComponents << "\n\n\n\n" << endl;
-    }
-
-
-    previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            
-            setBoundaryElems
-    (
-        cellAsShapes,
-        points,
-        boundaryComponents,
-        cells,
-        faces,
-        owner,
-        boundaryFaces
-    );
-
-    previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            Info<< "\nSetting boundaries elements took " 
-                << (current_time - previous_time) << " seconds.\n"
-                << endl;
-
-    if (debug)
-    {
-        Info<< "BoundFaces" << nl << boundaryFaces << "\n\n\n\n" << endl;
-        Info<< "NewFaces" << nl << faces << "\n\n\n\n" << endl;
-        Info<< "NewOwner" << nl << owner << "\n\n\n\n" << endl;
-        Info<< "NewCells" << nl << cells << "\n\n\n\n" << endl;
-    }
-
-    previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            
-            polyMesh mesh
+    polyMesh mesh
     (
         IOobject
         (
@@ -1144,10 +931,11 @@ int main(int argc, char *argv[])
         move(neighbour)
     );
 
-    label nFace = mesh.faceNeighbour().size();
-
     forAll(boundaryFaces, patchi)
     {
+        patchStarts[patchi] = nFace;
+        patchSizes[patchi] = boundaryFaces[patchi].size();
+
         boundaryPatches.append(
             new polyPatch
             (
@@ -1164,6 +952,23 @@ int main(int argc, char *argv[])
     }
 
     mesh.addPatches(boundaryPatches);
+
+    return mesh;
+}
+
+
+void appendZones
+(
+    polyMesh& mesh, 
+    const List<DynamicList<label>>& zonePoints, 
+    const List<DynamicList<label>>& zoneCells,
+    const Map<word>& pointSets, 
+    const Map<word>& elementSets, 
+    const bool pz
+)
+{
+    List<pointZone*> pointZones;
+    List<cellZone*> cellZones;
 
     forAll(zoneCells, zonei)
     {
@@ -1197,49 +1002,314 @@ int main(int argc, char *argv[])
     }
 
     mesh.addZones(pointZones, List<faceZone*>(0), cellZones);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+int main(int argc, char *argv[])
+{
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    // PROGRAM INITIALIZATION
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+    argList::noParallel();
+    argList::validArgs.append(".inp file");
+    argList::addBoolOption("pointZones", "Adds pointZones in the mesh.");
+    argList::addBoolOption("debug", "Adds pointZones in the mesh.");
+    argList::addOption
+    (
+        "repeat",
+        "vector",
+        "repeats the mesh in XYZ by the specified vector "
+        "- eg '(2 2 2)'"
+    );
+
+    #include "setRootCase.H"
+    #include "createTime.H"
+
+
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    // VARIABLE DEFINITIONS
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+    IFstream inFile(args[1]);
+    bool nodesNotRead(true);
+    bool elemsNotRead(true);
+
+    const bool debug = args.optionFound("debug");
+    const bool pz = args.optionFound("pointZones");
+    
+    vector reps;
+
+    // Storage for points
+    pointField points;
+    Map<label> texgenToFoam;
+
+    // Storage for all cells.
+    cellShapeList cellAsShapes;
+    cellList cells;
+
+    // Storage for all faces.
+    faceList faces;
+    labelList owner;
+    labelList neighbour;
+
+    // Storage for zones.
+    List<DynamicList<face>> patchFaces(0);
+    List<DynamicList<label>> zoneCells(0);
+    List<DynamicList<label>> zonePoints(0);
+
+    // Storage for boundaries.
+    Map<word> boundaryPatchNames(FACEHEX);
+    Map<word> boundaryTypes(FACEHEX);
+    Map<word> boundaryPhysicalTypes(FACEHEX);
+    faceListList boundaryFaces(FACEHEX);
+    labelListList boundaryComponents(FACEHEX);
+    labelList patchSizes(FACEHEX);
+    labelList patchStarts(FACEHEX);
+
+    // Name of zones.
+    Map<word> elementSets;
+    Map<word> pointSets;
+    Map<word> faceSets;
+
+
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    // FILE PARSING
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+    string line;
+    inFile.getLine(line);
+
+    while (inFile.good())
+    {   
+        if (line(8) == "*Heading")
+        {
+            readFileHeading(inFile, line);
+        }
+        else if (line(5) == "*Node" && nodesNotRead)
+        {   
+            readPoints(inFile, line, points, texgenToFoam);
+            nodesNotRead = false;
+        }
+        else if (line(8) == "*Element" && elemsNotRead)
+        {
+            readCells
+            (
+                inFile,
+                line,
+                points,
+                texgenToFoam,
+                cellAsShapes,
+                cells
+            );
+
+            setFaces
+            (
+                cellAsShapes, 
+                points, 
+                faces, 
+                owner, 
+                neighbour,
+                cells
+            );
+
+            elemsNotRead = false;
+        }
+        else if (line(6) == "*ElSet")
+        {
+            readElSet(inFile, line, elementSets, zoneCells);
+        }
+        else if (line(5) == "*NSet")
+        {
+            readNSet(inFile, line, pointSets, texgenToFoam, zonePoints);
+        }
+        else
+        {
+            inFile.getLine(line);
+        }
+    }
+
+
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    // CREATING BOUNDARY ELEMENTS
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+    setBoundaryProperties
+    (
+        boundaryPatchNames,
+        boundaryTypes,
+        boundaryPhysicalTypes,
+        boundaryComponents, 
+        zonePoints
+    );
+
+    if (debug)
+    {
+        Info<< "Points" << nl << points << "\n\n\n\n" << endl;
+        Info<< "Cells" << nl << cells << "\n\n\n\n" << endl;
+        Info<< "Faces" << nl << faces << "\n\n\n\n" << endl;
+        Info<< "Owner" << nl << owner << "\n\n\n\n" << endl;
+        Info<< "Neighbour" << nl << neighbour << "\n\n\n\n" << endl;
+        Info<< "CellAsShapes" << nl << cellAsShapes << "\n\n\n\n" << endl;
+        Info<< "ZoneCells" << nl << zoneCells << "\n\n\n\n" << endl;
+        Info<< "ZonePoints" << nl << zonePoints << "\n\n\n\n" << endl;
+        Info<< "BoundComps" << nl << boundaryComponents << "\n\n\n\n" << endl;
+    }
+
+    setBoundaryElems
+    (
+        cellAsShapes,
+        points,
+        boundaryComponents,
+        cells,
+        faces,
+        owner,
+        boundaryFaces
+    );
+
+    if (debug)
+    {
+        Info<< "BoundFaces" << nl << boundaryFaces << "\n\n\n\n" << endl;
+        Info<< "NewFaces" << nl << faces << "\n\n\n\n" << endl;
+        Info<< "NewOwner" << nl << owner << "\n\n\n\n" << endl;
+        Info<< "NewCells" << nl << cells << "\n\n\n\n" << endl;
+    }
+
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    // MESH CREATION
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+    polyMesh mesh = createMesh
+    (
+        points, 
+        faces, 
+        owner, 
+        neighbour, 
+        patchSizes,
+        patchStarts,
+        boundaryPatchNames, 
+        boundaryTypes, 
+        boundaryFaces,
+        runTime
+    );
+    appendZones
+    (
+        mesh, 
+        zonePoints, 
+        zoneCells,
+        pointSets, 
+        elementSets, 
+        pz
+    );
+
+    mesh.write();
 
     Info<< "Finished creating the mesh." << endl;
 
-    previous_time = current_time;
-            current_time = runTime.elapsedCpuTime();
-            Info<< "\nCreating took " 
-                << (current_time - previous_time) << " seconds.\n"
-                << endl;
 
-    vector reps;
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    // MESH REPETITION (In case -repeat option is used)
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
     if (args.optionReadIfPresent("repeat", reps))
     {
         Info<< "Repeating mesh of the cell." << nl <<
         "X direction: "<< reps[0] << nl <<
         "Y direction: "<< reps[1] << nl <<
         "Z direction: "<< reps[2] << nl << endl;
-        
-        // polyMesh newMesh(mesh);
 
-        for(label i=0; i < reps[0]; i++)
+        const point boundSize = mesh.bounds().max() - mesh.bounds().min();
+
+        scalar moveX = boundSize.x();
+        scalar moveY = boundSize.y();
+        scalar moveZ = boundSize.z();
+
+        for(label i=1; i < reps[0]; i++)
         {
-            // boundBox meshBounds = newMesh.bounds();
-            // polyMesh addMesh(mesh);
+            pointField addPoints = mesh.points();
+            faceList addFaces = mesh.faces();
+            labelList addOwner = mesh.faceOwner();
+            labelList addNeighbour = mesh.faceNeighbour();
 
-            // const pointField& addPoints = addMesh.points();
-            // Vector<scalar> transf = ( (meshBounds.max() - meshBounds.min())[0], 0, 0 );
-            // addPoints = addPoints + transf;
+            // mergePolyMesh newMesh
+            // (
+            //     mesh,
+            //     dirX,
+            //     mesh.points(),
+            //     mesh.faces(),
+            //     mesh.faceOwner(),
+            //     mesh.faceNeighbour()
+            // );
+            mergePolyMesh newMesh
+            (
+                IOobject
+                (
+                    polyMesh::defaultRegion,
+                    runTime.constant(),
+                    runTime
+                ),
+                dirX
+            );
+            
+            forAll(addPoints, pointi)
+            {
+                addPoints[pointi].x() += moveX;
+            }
 
+            Map<word> newBoundaryPatchNames = boundaryPatchNames;
+            newBoundaryPatchNames.erase(1);
+            newBoundaryPatchNames.insert(1, "MergingLeft");
+
+            polyMesh addMesh = createMesh
+            (
+                addPoints, 
+                addFaces, 
+                addOwner, 
+                addNeighbour, 
+                patchSizes,
+                patchStarts,
+                newBoundaryPatchNames, 
+                boundaryTypes, 
+                boundaryFaces,
+                runTime
+            );
+            appendZones
+            (
+                addMesh, 
+                zonePoints, 
+                zoneCells,
+                pointSets, 
+                elementSets, 
+                pz
+            );
+            newMesh.addMesh(addMesh);
+            newMesh.merge();
+            newMesh.write();
+
+            moveX += boundSize.x();
         }
 
-        for(label j=0; j < reps[1]; j++)
+        for(label j=1; j < reps[1]; j++)
         {
             
         }
 
-        for(label k=0; k < reps[2]; k++)
+        for(label k=1; k < reps[2]; k++)
         {
             
         }
-
     }
 
-    mesh.write();
     Info<< "End\n" << endl;
 
     return 0;

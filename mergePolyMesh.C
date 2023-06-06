@@ -1,0 +1,636 @@
+/*---------------------------------------------------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Copyright (C) 2011-2018 OpenFOAM Foundation
+     \\/     M anipulation  |
+-------------------------------------------------------------------------------
+License
+    This file is part of OpenFOAM.
+
+    OpenFOAM is free software: you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    OpenFOAM is distributed in the hope that it will be useful, but WITHOUT
+    ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+    FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+    for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
+
+    THIS FILE IS MODIFIED FROM THE ORIGINAL IT MIXES BOTH MERGEMESHS AND
+    STITCHMESH.
+    Original versions from OpenFOAM, modified to suit better the purpose
+    of this application.
+
+\*---------------------------------------------------------------------------*/
+
+#include "mergePolyMesh.H"
+#include "Time.H"
+#include "polyTopoChanger.H"
+#include "perfectInterface.H"
+#include "mapPolyMesh.H"
+#include "polyAddPoint.H"
+#include "polyAddCell.H"
+#include "polyAddFace.H"
+
+// * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
+
+namespace Foam
+{
+    defineTypeNameAndDebug(mergePolyMesh, 1);
+}
+
+
+// * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
+
+Foam::label Foam::mergePolyMesh::patchIndex(const polyPatch& p)
+{
+    // Find the patch name on the list.  If the patch is already there
+    // and patch types match, return index
+    const word& pType = p.type();
+    const word& pName = p.name();
+
+    bool nameFound = false;
+
+    forAll(patchNames_, patchi)
+    {
+        if (patchNames_[patchi] == pName)
+        {
+            if (word(patchDicts_[patchi]["type"]) == pType)
+            {
+                // Found name and types match
+                return patchi;
+            }
+            else
+            {
+                // Found the name, but type is different
+                nameFound = true;
+            }
+        }
+    }
+
+    // Patch not found.  Append to the list
+    {
+        OStringStream os;
+        p.write(os);
+        patchDicts_.append(dictionary(IStringStream(os.str())()));
+    }
+
+    if (nameFound)
+    {
+        // Duplicate name is not allowed.  Create a composite name from the
+        // patch name and case name
+        const word& caseName = p.boundaryMesh().mesh().time().caseName();
+
+        patchNames_.append(pName + "_" + caseName);
+
+        Info<< "label patchIndex(const polyPatch& p) : "
+            << "Patch " << p.index() << " named "
+            << pName << " in mesh " << caseName
+            << " already exists, but patch types "
+            << " do not match.\nCreating a composite name as "
+            << patchNames_.last() << endl;
+    }
+    else
+    {
+        patchNames_.append(pName);
+    }
+
+    return patchNames_.size() - 1;
+}
+
+
+Foam::label Foam::mergePolyMesh::zoneIndex
+(
+    List<word>& names,
+    const word& curName
+)
+{
+    forAll(names, zoneI)
+    {
+        if (names[zoneI] == curName)
+        {
+            return zoneI;
+        }
+    }
+
+    // Not found.  Add new name to the list
+    names.append(curName);
+
+    return names.size() - 1;
+}
+
+
+Foam::label Foam::mergePolyMesh::addPointZone
+(
+    const polyMesh& mesh, 
+    const word& name
+)
+{
+    label zoneID = pointZones().findZoneID(name);
+
+    if (zoneID != -1)
+    {
+        Info<< "Reusing existing pointZone "
+            << pointZones()[zoneID].name()
+            << " at index " << zoneID << endl;
+    }
+    else
+    {
+        pointZoneMesh& pointZones = const_cast<polyMesh&>(mesh).pointZones();
+        zoneID = pointZones.size();
+        Info<< "Adding pointZone " << name << " at index " << zoneID << endl;
+
+        pointZones.setSize(zoneID+1);
+        pointZones.set
+        (
+            zoneID,
+            new pointZone
+            (
+                name,
+                labelList(0),
+                zoneID,
+                pointZones
+            )
+        );
+    }
+    return zoneID;
+}
+
+
+Foam::label Foam::mergePolyMesh::addFaceZone
+(
+    const polyMesh& mesh, 
+    const word& name
+)
+{
+    label zoneID = faceZones().findZoneID(name);
+
+    if (zoneID != -1)
+    {
+        Info<< "Reusing existing faceZone " << faceZones()[zoneID].name()
+            << " at index " << zoneID << endl;
+    }
+    else
+    {
+        faceZoneMesh& faceZones = const_cast<polyMesh&>(mesh).faceZones();
+        zoneID = faceZones.size();
+        Info<< "Adding faceZone " << name << " at index " << zoneID << endl;
+
+        faceZones.setSize(zoneID+1);
+        faceZones.set
+        (
+            zoneID,
+            new faceZone
+            (
+                name,
+                labelList(0),
+                boolList(),
+                zoneID,
+                faceZones
+            )
+        );
+    }
+    return zoneID;
+}
+
+
+Foam::label Foam::mergePolyMesh::addCellZone
+(
+    const polyMesh& mesh, 
+    const word& name
+)
+{
+    label zoneID = cellZones().findZoneID(name);
+
+    if (zoneID != -1)
+    {
+        Info<< "Reusing existing cellZone " << cellZones()[zoneID].name()
+            << " at index " << zoneID << endl;
+    }
+    else
+    {
+        cellZoneMesh& cellZones = const_cast<polyMesh&>(mesh).cellZones();
+        zoneID = cellZones.size();
+        Info<< "Adding cellZone " << name << " at index " << zoneID << endl;
+
+        cellZones.setSize(zoneID+1);
+        cellZones.set
+        (
+            zoneID,
+            new cellZone
+            (
+                name,
+                labelList(0),
+                zoneID,
+                cellZones
+            )
+        );
+    }
+    return zoneID;
+}
+
+
+// * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
+
+// Foam::mergePolyMesh::mergePolyMesh
+// (
+//     const polyMesh& mesh, 
+//     const label axisDir,
+//     pointField points,
+//     faceList faces,
+//     labelList owner,
+//     labelList neighbour
+// )
+Foam::mergePolyMesh::mergePolyMesh(const IOobject& io, const label axisDir)
+:
+
+    polyMesh(io),
+    axisDir_(axisDir),
+    meshMod_(*this),
+    patchNames_(boundaryMesh().names()),
+    patchDicts_(boundaryMesh().size()),
+    cellZoneNames_(cellZones().names())
+{
+    switch (axisDir_)
+    {
+        case 0:
+            patchNames_[0] = "MergingRight";
+            break;
+        case 1:
+            patchNames_[2] = "MergingBack";
+            break;
+        case 2:
+            patchNames_[4] = "MergingTop";
+            break;
+    }
+
+    // Insert the original patches into the list
+    forAll(boundaryMesh(), patchi)
+    {
+        OStringStream os;
+        boundaryMesh()[patchi].write(os);
+        patchDicts_[patchi] = dictionary(IStringStream(os.str())());
+    }
+ 
+    List<polyPatch*> bmPatches(patchNames_.size());
+
+    forAll(bmPatches, patchi)
+    {
+        bmPatches[patchi] = new polyPatch
+            (
+                patchNames_[patchi],
+                patchDicts_[patchi],
+                patchi,
+                boundaryMesh(),
+                boundaryMesh()[patchi].physicalType()
+            );
+    }
+    removeBoundary();
+    addPatches(bmPatches);
+}
+
+
+// * * * * * * * * * * * * * * * * Destructor  * * * * * * * * * * * * * * * //
+
+
+// * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+
+void Foam::mergePolyMesh::addMesh(const polyMesh& m)
+{
+    // Add all the points, faces and cells of the new mesh
+
+    // Add points
+    label zoneID = -1;
+
+    const pointField& p = m.points();
+    labelList renumberPoints(p.size());
+    
+    forAll(p, pointi)
+    {
+        renumberPoints[pointi] =
+            meshMod_.setAction
+            (
+                polyAddPoint
+                (
+                    p[pointi],            // Point to add
+                    -1,                   // Master point (straight addition)
+                    zoneID,               // Zone for point
+                    pointi < m.nPoints()  // Is in cell?
+                )
+            );
+    }
+    
+    // Add cells
+
+    const cellList& c = m.cells();
+    labelList renumberCells(c.size());
+
+    const cellZoneMesh& cz = m.cellZones();
+    labelList cellZoneIndices(cz.size());
+
+    forAll(cz, zoneI)
+    {
+        cellZoneIndices[zoneI] = zoneIndex(cellZoneNames_, cz[zoneI].name());
+    }
+    
+    forAll(c, celli)
+    {
+        // Grab zone ID.  If a cell is not in a zone, it will return -1
+        zoneID = cz.whichZone(celli);
+
+        if (zoneID >= 0)
+        {
+            // Translate zone ID into the new index
+            zoneID = cellZoneIndices[zoneID];
+        }
+
+        renumberCells[celli] =
+            meshMod_.setAction
+            (
+                polyAddCell
+                (
+                    -1,                   // Master point
+                    -1,                   // Master edge
+                    -1,                   // Master face
+                    -1,                   // Master cell
+                    zoneID                // Zone for cell
+                )
+            );
+    }
+    
+    // Add faces
+    const polyBoundaryMesh& bm = m.boundaryMesh();
+
+    // Gather the patch indices
+    labelList patchIndices(bm.size());
+
+    forAll(patchIndices, patchi)
+    {
+        patchIndices[patchi] = patchIndex(bm[patchi]);
+    }
+    
+    // Temporary: update number of allowable patches. This should be
+    // determined at the top - before adding anything.
+    meshMod_.setNumPatches(patchNames_.size());
+
+    const faceList& f = m.faces();
+    labelList renumberFaces(f.size());
+
+    const labelList& own = m.faceOwner();
+    const labelList& nei = m.faceNeighbour();
+
+    label newOwn, newNei, newPatch;
+
+    forAll(f, facei)
+    {
+        const face& curFace = f[facei];
+
+        face newFace(curFace.size());
+
+        forAll(curFace, pointi)
+        {
+            newFace[pointi] = renumberPoints[curFace[pointi]];
+        }
+        
+        if (facei < m.nInternalFaces() || facei >= m.nFaces())
+        {
+            newPatch = -1;
+        }
+        else
+        {
+            newPatch = patchIndices[bm.whichPatch(facei)];
+        }
+
+        newOwn = own[facei];
+        if (newOwn > -1) newOwn = renumberCells[newOwn];
+
+        if (newPatch > -1)
+        {
+            newNei = -1;
+        }
+        else
+        {
+            newNei = nei[facei];
+            newNei = renumberCells[newNei];
+        }
+
+        renumberFaces[facei] =
+            meshMod_.setAction
+            (
+                polyAddFace
+                (
+                    newFace,
+                    newOwn,
+                    newNei,
+                    -1,
+                    -1,
+                    -1,
+                    false,
+                    newPatch,
+                    -1,
+                    false
+                )
+            );
+    }
+}
+
+
+void Foam::mergePolyMesh::merge()
+{
+    Info<< "patch names: " << patchNames_ << nl
+        << "patch dicts: " << patchDicts_ << nl
+        << "cell zone names: " << cellZoneNames_ << endl;
+
+    // Add the patches if necessary
+    if (patchNames_.size() != boundaryMesh().size())
+    {
+        Info<< "Copying old patches" << endl;
+
+        List<polyPatch*> newPatches(patchNames_.size());
+
+        const polyBoundaryMesh& oldPatches = boundaryMesh();
+
+        // Note.  Re-using counter in two for loops
+        label patchi = 0;
+
+        for (patchi = 0; patchi < oldPatches.size(); patchi++)
+        {
+            newPatches[patchi] = oldPatches[patchi].clone(oldPatches).ptr();
+        }
+
+        Info<< "Adding new patches. " << endl;
+
+        label endOfLastPatch =
+            patchi == 0
+          ? 0
+          : oldPatches[patchi - 1].start() + oldPatches[patchi - 1].size();
+
+        for (; patchi < patchNames_.size(); patchi++)
+        {
+            // Add a patch
+            dictionary dict(patchDicts_[patchi]);
+            dict.set("nFaces", 0);
+            dict.set("startFace", endOfLastPatch);
+
+            newPatches[patchi] =
+            (
+                polyPatch::New
+                (
+                    patchNames_[patchi],
+                    dict,
+                    patchi,
+                    oldPatches
+                ).ptr()
+            );
+        }
+
+        removeBoundary();
+        addPatches(newPatches);
+    }
+
+    // Add the zones if necessary
+    if (cellZoneNames_.size() > cellZones().size())
+    {
+        Info<< "Adding new cellZones. " << endl;
+
+        label nZones = cellZones().size();
+
+        cellZones().setSize(cellZoneNames_.size());
+
+        for (label zoneI = nZones; zoneI < cellZoneNames_.size(); zoneI++)
+        {
+            cellZones().set
+            (
+                zoneI,
+                new cellZone
+                (
+                    cellZoneNames_[zoneI],
+                    labelList(),
+                    zoneI,
+                    cellZones()
+                )
+            );
+        }
+    }
+
+    // Change mesh. No inflation
+    meshMod_.changeMesh(*this, false);
+
+    // Clear topo change for the next operation
+    meshMod_.clear();
+
+    word masterPatchName;
+    word slavePatchName;
+
+    switch(axisDir_)
+    {
+        case 0:
+            masterPatchName = "MergingRight";
+            slavePatchName = "MergingLeft";
+            break;
+        case 1:
+            masterPatchName = "MergingBack";
+            slavePatchName = "MergingFront";
+            break;
+        case 2:
+            masterPatchName = "MergingTop";
+            slavePatchName = "MergingBottom";
+            break;
+    }
+
+    // Master patch
+    const polyPatch& masterPatch = boundaryMesh()[masterPatchName];
+
+    // Make list of masterPatch faces
+    labelList isf(masterPatch.size());
+
+    forAll(isf, i)
+    {
+        isf[i] = masterPatch.start() + i;
+    }
+
+    polyTopoChanger stitcher(*this);
+    stitcher.setSize(1);
+
+    faceZones().clearAddressing();
+
+    // Add empty zone for resulting internal faces
+    label cutZoneID = addFaceZone(*this, "cutZoneName");
+
+    faceZones()[cutZoneID].resetAddressing
+    (
+        isf,
+        boolList(masterPatch.size(), false)
+    );
+
+    // Add the perfect interface mesh modifier
+    stitcher.set
+    (
+        0,
+        new perfectInterface
+        (
+            "couple",
+            0,
+            stitcher,
+            "cutZoneName",
+            masterPatchName,
+            slavePatchName
+        )
+    );
+
+    // Execute all polyMeshModifiers
+    autoPtr<mapPolyMesh> morphMap = stitcher.changeMesh(true);
+    movePoints(morphMap->preMotionPoints());
+
+
+
+    List<polyPatch*> bmPatches;
+
+    // const polyBoundaryMesh& oldPatches = boundaryMesh();
+
+    // Note.  Re-using counter in two for loops
+    // label patchi = 0;
+
+    forAll(boundaryMesh(), patchi)
+    {
+        if
+        (
+            boundaryMesh()[patchi].name() != masterPatchName &&
+            boundaryMesh()[patchi].name() != slavePatchName
+        )
+        bmPatches.append(boundaryMesh()[patchi].clone(boundaryMesh()).ptr());
+    }
+
+
+    // forAll(boundaryMesh(), patchi)
+    // {
+    //     if
+    //     (
+    //         boundaryMesh()[patchi].name() != masterPatchName &&
+    //         boundaryMesh()[patchi].name() != slavePatchName
+    //     )
+    //     {
+    //         bmPatches.append
+    //         (
+    //             new polyPatch
+    //             (
+    //                 patchNames_[patchi],
+    //                 patchDicts_[patchi],
+    //                 patchi,
+    //                 boundaryMesh(),
+    //                 boundaryMesh()[patchi].physicalType()
+    //             )
+    //         );
+    //     }
+    // }
+    removeBoundary();
+    addPatches(bmPatches);
+}
+
+
+// ************************************************************************* //
