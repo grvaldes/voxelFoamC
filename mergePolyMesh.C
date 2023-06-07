@@ -125,43 +125,6 @@ Foam::label Foam::mergePolyMesh::zoneIndex
 }
 
 
-Foam::label Foam::mergePolyMesh::addPointZone
-(
-    const polyMesh& mesh, 
-    const word& name
-)
-{
-    label zoneID = pointZones().findZoneID(name);
-
-    if (zoneID != -1)
-    {
-        Info<< "Reusing existing pointZone "
-            << pointZones()[zoneID].name()
-            << " at index " << zoneID << endl;
-    }
-    else
-    {
-        pointZoneMesh& pointZones = const_cast<polyMesh&>(mesh).pointZones();
-        zoneID = pointZones.size();
-        Info<< "Adding pointZone " << name << " at index " << zoneID << endl;
-
-        pointZones.setSize(zoneID+1);
-        pointZones.set
-        (
-            zoneID,
-            new pointZone
-            (
-                name,
-                labelList(0),
-                zoneID,
-                pointZones
-            )
-        );
-    }
-    return zoneID;
-}
-
-
 Foam::label Foam::mergePolyMesh::addFaceZone
 (
     const polyMesh& mesh, 
@@ -170,16 +133,10 @@ Foam::label Foam::mergePolyMesh::addFaceZone
 {
     label zoneID = faceZones().findZoneID(name);
 
-    if (zoneID != -1)
-    {
-        Info<< "Reusing existing faceZone " << faceZones()[zoneID].name()
-            << " at index " << zoneID << endl;
-    }
-    else
+    if (zoneID == -1)
     {
         faceZoneMesh& faceZones = const_cast<polyMesh&>(mesh).faceZones();
         zoneID = faceZones.size();
-        Info<< "Adding faceZone " << name << " at index " << zoneID << endl;
 
         faceZones.setSize(zoneID+1);
         faceZones.set
@@ -199,42 +156,6 @@ Foam::label Foam::mergePolyMesh::addFaceZone
 }
 
 
-Foam::label Foam::mergePolyMesh::addCellZone
-(
-    const polyMesh& mesh, 
-    const word& name
-)
-{
-    label zoneID = cellZones().findZoneID(name);
-
-    if (zoneID != -1)
-    {
-        Info<< "Reusing existing cellZone " << cellZones()[zoneID].name()
-            << " at index " << zoneID << endl;
-    }
-    else
-    {
-        cellZoneMesh& cellZones = const_cast<polyMesh&>(mesh).cellZones();
-        zoneID = cellZones.size();
-        Info<< "Adding cellZone " << name << " at index " << zoneID << endl;
-
-        cellZones.setSize(zoneID+1);
-        cellZones.set
-        (
-            zoneID,
-            new cellZone
-            (
-                name,
-                labelList(0),
-                zoneID,
-                cellZones
-            )
-        );
-    }
-    return zoneID;
-}
-
-
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 // Foam::mergePolyMesh::mergePolyMesh
@@ -246,29 +167,16 @@ Foam::label Foam::mergePolyMesh::addCellZone
 //     labelList owner,
 //     labelList neighbour
 // )
-Foam::mergePolyMesh::mergePolyMesh(const IOobject& io, const label axisDir)
+Foam::mergePolyMesh::mergePolyMesh(const IOobject& io)
 :
 
     polyMesh(io),
-    axisDir_(axisDir),
+    axisDir_(-1),
     meshMod_(*this),
     patchNames_(boundaryMesh().names()),
     patchDicts_(boundaryMesh().size()),
     cellZoneNames_(cellZones().names())
 {
-    switch (axisDir_)
-    {
-        case 0:
-            patchNames_[0] = "MergingRight";
-            break;
-        case 1:
-            patchNames_[2] = "MergingBack";
-            break;
-        case 2:
-            patchNames_[4] = "MergingTop";
-            break;
-    }
-
     // Insert the original patches into the list
     forAll(boundaryMesh(), patchi)
     {
@@ -442,15 +350,9 @@ void Foam::mergePolyMesh::addMesh(const polyMesh& m)
 
 void Foam::mergePolyMesh::merge()
 {
-    Info<< "patch names: " << patchNames_ << nl
-        << "patch dicts: " << patchDicts_ << nl
-        << "cell zone names: " << cellZoneNames_ << endl;
-
     // Add the patches if necessary
     if (patchNames_.size() != boundaryMesh().size())
     {
-        Info<< "Copying old patches" << endl;
-
         List<polyPatch*> newPatches(patchNames_.size());
 
         const polyBoundaryMesh& oldPatches = boundaryMesh();
@@ -462,8 +364,6 @@ void Foam::mergePolyMesh::merge()
         {
             newPatches[patchi] = oldPatches[patchi].clone(oldPatches).ptr();
         }
-
-        Info<< "Adding new patches. " << endl;
 
         label endOfLastPatch =
             patchi == 0
@@ -496,8 +396,6 @@ void Foam::mergePolyMesh::merge()
     // Add the zones if necessary
     if (cellZoneNames_.size() > cellZones().size())
     {
-        Info<< "Adding new cellZones. " << endl;
-
         label nZones = cellZones().size();
 
         cellZones().setSize(cellZoneNames_.size());
@@ -524,6 +422,7 @@ void Foam::mergePolyMesh::merge()
     // Clear topo change for the next operation
     meshMod_.clear();
 
+    // Merging matching boundaries and turning them into inner faces
     word masterPatchName;
     word slavePatchName;
 
@@ -556,7 +455,6 @@ void Foam::mergePolyMesh::merge()
 
     polyTopoChanger stitcher(*this);
     stitcher.setSize(1);
-
     faceZones().clearAddressing();
 
     // Add empty zone for resulting internal faces
@@ -587,14 +485,8 @@ void Foam::mergePolyMesh::merge()
     autoPtr<mapPolyMesh> morphMap = stitcher.changeMesh(true);
     movePoints(morphMap->preMotionPoints());
 
-
-
+    // Update boundaries to remove empty ones.
     List<polyPatch*> bmPatches;
-
-    // const polyBoundaryMesh& oldPatches = boundaryMesh();
-
-    // Note.  Re-using counter in two for loops
-    // label patchi = 0;
 
     forAll(boundaryMesh(), patchi)
     {
@@ -606,30 +498,43 @@ void Foam::mergePolyMesh::merge()
         bmPatches.append(boundaryMesh()[patchi].clone(boundaryMesh()).ptr());
     }
 
-
-    // forAll(boundaryMesh(), patchi)
-    // {
-    //     if
-    //     (
-    //         boundaryMesh()[patchi].name() != masterPatchName &&
-    //         boundaryMesh()[patchi].name() != slavePatchName
-    //     )
-    //     {
-    //         bmPatches.append
-    //         (
-    //             new polyPatch
-    //             (
-    //                 patchNames_[patchi],
-    //                 patchDicts_[patchi],
-    //                 patchi,
-    //                 boundaryMesh(),
-    //                 boundaryMesh()[patchi].physicalType()
-    //             )
-    //         );
-    //     }
-    // }
     removeBoundary();
     addPatches(bmPatches);
+}
+
+
+void Foam::mergePolyMesh::setAxisDir(const label axisDir)
+{
+    axisDir_ = axisDir;
+}
+
+
+void Foam::mergePolyMesh::getNewProps
+(
+    labelList& patchSizes,
+    labelList& patchStarts,
+    List<DynamicList<label>>& zoneCells
+)
+{
+    patchSizes.clear();
+    patchStarts.clear();
+    zoneCells.clear();
+    
+    zoneCells.setSize(cellZones().size());
+
+    forAll(patchDicts_, patchi)
+    {
+        patchSizes[patchi] = readInt(patchDicts_[patchi]["nFaces"]);
+        patchStarts[patchi] = readInt(patchDicts_[patchi]["startFace"]);
+    }
+
+    forAll(cellZones(), zonei)
+    {
+        forAll(cellZones()[zonei], celli)
+        {
+            zoneCells[zonei].append(cellZones()[zonei][celli]);
+        }
+    }
 }
 
 

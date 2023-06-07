@@ -48,7 +48,6 @@ Description
 #include "argList.H"
 #include "polyMesh.H"
 #include "Time.H"
-#include "polyMesh.H"
 #include "mergePolyMesh.H"
 #include "IFstream.H"
 #include "cellModeller.H"
@@ -847,9 +846,12 @@ polyMesh createMesh
     const Map<word>& boundaryPatchNames,
     const Map<word>& boundaryTypes,
     const faceListList& boundaryFaces,
+    const List<DynamicList<label>>& zoneCells,
+    const Map<word>& elementSets,
     const Time& runTime
 )
 {  
+    List<cellZone*> cellZones;
     List<polyPatch*> boundaryPatches;
     label nFace = neighbour.size();
 
@@ -889,23 +891,6 @@ polyMesh createMesh
 
     mesh.addPatches(boundaryPatches);
 
-    return mesh;
-}
-
-
-void appendZones
-(
-    polyMesh& mesh, 
-    const List<DynamicList<label>>& zonePoints, 
-    const List<DynamicList<label>>& zoneCells,
-    const Map<word>& pointSets, 
-    const Map<word>& elementSets, 
-    const bool pz
-)
-{
-    List<pointZone*> pointZones;
-    List<cellZone*> cellZones;
-
     forAll(zoneCells, zonei)
     {
         cellZones.append
@@ -920,25 +905,11 @@ void appendZones
         );
     }
 
-    if (pz)
-    {
-        forAll(zonePoints, zonei)
-        {
-            pointZones.append
-            (
-                new pointZone
-                (
-                    pointSets[zonei],
-                    zonePoints[zonei],
-                    zonei,
-                    mesh.pointZones()
-                )
-            );
-        }
-    }
+    mesh.addZones(List<pointZone*>(0), List<faceZone*>(0), cellZones);
 
-    mesh.addZones(pointZones, List<faceZone*>(0), cellZones);
+    return mesh;
 }
+
 
 
 
@@ -959,8 +930,6 @@ int main(int argc, char *argv[])
 
     argList::noParallel();
     argList::validArgs.append(".inp file");
-    argList::addBoolOption("pointZones", "Adds pointZones in the mesh.");
-    argList::addBoolOption("debug", "Adds pointZones in the mesh.");
     argList::addOption
     (
         "repeat",
@@ -980,9 +949,6 @@ int main(int argc, char *argv[])
     IFstream inFile(args[1]);
     bool nodesNotRead(true);
     bool elemsNotRead(true);
-
-    const bool debug = args.optionFound("debug");
-    const bool pz = args.optionFound("pointZones");
     
     vector reps;
 
@@ -1000,7 +966,6 @@ int main(int argc, char *argv[])
     labelList neighbour;
 
     // Storage for zones.
-    List<DynamicList<face>> patchFaces(0);
     List<DynamicList<label>> zoneCells(0);
     List<DynamicList<label>> zonePoints(0);
 
@@ -1016,7 +981,6 @@ int main(int argc, char *argv[])
     // Name of zones.
     Map<word> elementSets;
     Map<word> pointSets;
-    Map<word> faceSets;
 
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -1089,19 +1053,6 @@ int main(int argc, char *argv[])
         zonePoints
     );
 
-    if (debug)
-    {
-        Info<< "Points" << nl << points << "\n\n\n\n" << endl;
-        Info<< "Cells" << nl << cells << "\n\n\n\n" << endl;
-        Info<< "Faces" << nl << faces << "\n\n\n\n" << endl;
-        Info<< "Owner" << nl << owner << "\n\n\n\n" << endl;
-        Info<< "Neighbour" << nl << neighbour << "\n\n\n\n" << endl;
-        Info<< "CellAsShapes" << nl << cellAsShapes << "\n\n\n\n" << endl;
-        Info<< "ZoneCells" << nl << zoneCells << "\n\n\n\n" << endl;
-        Info<< "ZonePoints" << nl << zonePoints << "\n\n\n\n" << endl;
-        Info<< "BoundComps" << nl << boundaryComponents << "\n\n\n\n" << endl;
-    }
-
     setBoundaryElems
     (
         cellAsShapes,
@@ -1113,13 +1064,6 @@ int main(int argc, char *argv[])
         boundaryFaces
     );
 
-    if (debug)
-    {
-        Info<< "BoundFaces" << nl << boundaryFaces << "\n\n\n\n" << endl;
-        Info<< "NewFaces" << nl << faces << "\n\n\n\n" << endl;
-        Info<< "NewOwner" << nl << owner << "\n\n\n\n" << endl;
-        Info<< "NewCells" << nl << cells << "\n\n\n\n" << endl;
-    }
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     // MESH CREATION
@@ -1135,17 +1079,10 @@ int main(int argc, char *argv[])
         patchStarts,
         boundaryPatchNames, 
         boundaryTypes, 
-        boundaryFaces,
-        runTime
-    );
-    appendZones
-    (
-        mesh, 
-        zonePoints, 
+        boundaryFaces, 
         zoneCells,
-        pointSets, 
         elementSets, 
-        pz
+        runTime
     );
 
     mesh.write();
@@ -1159,7 +1096,7 @@ int main(int argc, char *argv[])
 
     if (args.optionReadIfPresent("repeat", reps))
     {
-        Info<< "Repeating mesh of the cell." << nl <<
+        Info<< "\nRepeating mesh of the cell." << nl <<
         "X direction: "<< reps[0] << nl <<
         "Y direction: "<< reps[1] << nl <<
         "Z direction: "<< reps[2] << nl << endl;
@@ -1170,24 +1107,29 @@ int main(int argc, char *argv[])
         scalar moveY = boundSize.y();
         scalar moveZ = boundSize.z();
 
+        labelList newPatchSizes(FACEHEX);
+        labelList newPatchStarts(FACEHEX);
+        List<DynamicList<label>> newZoneCells(0);   
+
+        mergePolyMesh newMesh
+        (
+            IOobject
+            (
+                polyMesh::defaultRegion,
+                runTime.constant(),
+                runTime
+            )
+        );
+
+        newMesh.setAxisDir(dirX);
+
         for(label i=1; i < reps[0]; i++)
         {
-            pointField addPoints = mesh.points();
-            faceList addFaces = mesh.faces();
-            labelList addOwner = mesh.faceOwner();
-            labelList addNeighbour = mesh.faceNeighbour();
+            Info<< "Joining cells " << i << " and " << (i+1) <<
+                " in the X direction." << endl;
 
-            mergePolyMesh newMesh
-            (
-                IOobject
-                (
-                    polyMesh::defaultRegion,
-                    runTime.constant(),
-                    runTime
-                ),
-                dirX
-            );
-            
+            pointField addPoints = mesh.points();
+
             forAll(addPoints, pointi)
             {
                 addPoints[pointi].x() += moveX;
@@ -1200,41 +1142,136 @@ int main(int argc, char *argv[])
             polyMesh addMesh = createMesh
             (
                 addPoints, 
-                addFaces, 
-                addOwner, 
-                addNeighbour, 
+                faces, 
+                owner, 
+                neighbour, 
                 patchSizes,
                 patchStarts,
                 newBoundaryPatchNames, 
                 boundaryTypes, 
-                boundaryFaces,
+                boundaryFaces, 
+                zoneCells,
+                elementSets, 
                 runTime
             );
-            appendZones
-            (
-                addMesh, 
-                zonePoints, 
-                zoneCells,
-                pointSets, 
-                elementSets, 
-                pz
-            );
+
             newMesh.addMesh(addMesh);
             newMesh.merge();
-            newMesh.write();
 
             moveX += boundSize.x();
         }
 
+        newMesh.setAxisDir(dirY);
+        newMesh.getNewProps(newPatchSizes, newPatchStarts, newZoneCells);
+
         for(label j=1; j < reps[1]; j++)
         {
+            Info<< "Joining cells " << j << " and " << (j+1) <<
+                " in the Y direction." << endl;
+
+            pointField addPoints = newMesh.points();
+            faceList addFaces = newMesh.faces();
+            labelList addOwner = newMesh.faceOwner();
+            labelList addNeighbour = newMesh.faceNeighbour();
             
+            Map<word> newBoundaryPatchNames;
+
+            forAll(newMesh.boundaryMesh(), bd)
+            {
+                const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
+                newBoundaryPatchNames.insert
+                    (
+                        curPatch.index(),
+                        (curPatch.name() == "Front" ? "MergingFront" : "Front")
+                    );
+
+            }
+            // newBoundaryPatchNames.erase(3);
+            // newBoundaryPatchNames.insert(3, "MergingFront");
+            
+            forAll(addPoints, pointi)
+            {
+                addPoints[pointi].y() += moveY;
+            }
+
+            polyMesh addMesh = createMesh
+            (
+                addPoints, 
+                addFaces, 
+                addOwner, 
+                addNeighbour, 
+                newPatchSizes,
+                newPatchStarts,
+                newBoundaryPatchNames, 
+                boundaryTypes, 
+                boundaryFaces, 
+                newZoneCells,
+                elementSets, 
+                runTime
+            );
+
+            newMesh.addMesh(addMesh);
+            newMesh.merge();
+
+            moveY += boundSize.y();
         }
+
+        newMesh.setAxisDir(dirZ);
+        newMesh.getNewProps(newPatchSizes, newPatchStarts, newZoneCells);
 
         for(label k=1; k < reps[2]; k++)
         {
+            Info<< "Joining cells " << k << " and " << (k+1) <<
+                " in the Z direction." << endl;
+
+            pointField addPoints = newMesh.points();
+            faceList addFaces = newMesh.faces();
+            labelList addOwner = newMesh.faceOwner();
+            labelList addNeighbour = newMesh.faceNeighbour();
             
+            Map<word> newBoundaryPatchNames;
+
+            forAll(newMesh.boundaryMesh(), bd)
+            {
+                const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
+                newBoundaryPatchNames.insert
+                    (
+                        curPatch.index(),
+                        (curPatch.name() == "Bottom" ? "MergingBottom" : "Bottom")
+                    );
+
+            }
+            
+            forAll(addPoints, pointi)
+            {
+                addPoints[pointi].z() += moveZ;
+            }
+
+            polyMesh addMesh = createMesh
+            (
+                addPoints, 
+                addFaces, 
+                addOwner, 
+                addNeighbour, 
+                newPatchSizes,
+                newPatchStarts,
+                newBoundaryPatchNames, 
+                boundaryTypes, 
+                boundaryFaces, 
+                newZoneCells,
+                elementSets, 
+                runTime
+            );
+
+            newMesh.addMesh(addMesh);
+            newMesh.merge();
+
+            moveZ += boundSize.z();
         }
+
+
+        newMesh.setInstance(mesh.pointsInstance());
+        newMesh.write();
     }
 
     Info<< "End\n" << endl;

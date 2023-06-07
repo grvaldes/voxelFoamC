@@ -80,13 +80,7 @@ class mergePolyMesh
         label zoneIndex(List<word>&, const word&);
 
         //- Adds a pointZone when stitching the mesh
-        label addPointZone(const polyMesh&, const word&);
-
-        //- Adds a pointZone when stitching the mesh
         label addFaceZone(const polyMesh&, const word&);
-
-        //- Adds a pointZone when stitching the mesh
-        label addCellZone(const polyMesh&, const word&);
 
 
 public:
@@ -107,7 +101,7 @@ public:
         //     labelList owner,
         //     labelList neighbour
         // );
-        mergePolyMesh(const IOobject& io, const label axisDir);
+        mergePolyMesh(const IOobject&);
 
         //- Disallow default bitwise copy construction
         mergePolyMesh(const mergePolyMesh&) = delete;
@@ -121,11 +115,16 @@ public:
     // Member Functions
 
         //- Add a mesh
-        void addMesh(const polyMesh& m);
+        void addMesh(const polyMesh&);
 
         //- Merge meshes
         void merge();
 
+        //- Sets the direction of repetition
+        void setAxisDir(const label);
+
+        //- Returns properties for setting new mesh
+        void getNewProps(labelList&, labelList&, List<DynamicList<label>>&);
 
     // Member Operators
 
