@@ -160,19 +160,6 @@ List<label> labelParse(string line, label ListSize)
     }
 }
 
-// Assign OF numbers to TG nodes.
-void renumber
-(
-    const Map<label>& texgenToFoam,
-    labelList& labels
-)
-{
-    forAll(labels, labelI)
-    {
-        labels[labelI] = texgenToFoam[labels[labelI]];
-    }
-}
-
 
 // Set which cells are associated to a point
 // Copy from Foam::labelListList Foam::polyMesh::cellShapePointCells
@@ -243,64 +230,6 @@ labelListList shapePointFaces
     }
 
     return pointFaceAddr;
-}
-
-
-// Copy from Foam::labelList Foam::polyMesh::facePatchFaceCells
-labelList facePatchFaceCells
-(
-    const faceList& patchFaces,
-    const labelListList& pointCells,
-    const faceListList& cellsFaceShapes,
-    const label patchID
-)
-{
-    bool found;
-
-    labelList FaceCells(patchFaces.size());
-
-    forAll(patchFaces, fI)
-    {
-        found = false;
-
-        const face& curFace = patchFaces[fI];
-        const labelList& facePoints = patchFaces[fI];
-
-        forAll(facePoints, pointi)
-        {
-            const labelList& facePointCells = pointCells[facePoints[pointi]];
-
-            forAll(facePointCells, celli)
-            {
-                faceList cellFaces = cellsFaceShapes[facePointCells[celli]];
-
-                forAll(cellFaces, cellFace)
-                {
-                    if (face::sameVertices(cellFaces[cellFace], curFace))
-                    {
-                        // Found the cell corresponding to this face
-                        FaceCells[fI] = facePointCells[celli];
-
-                        found = true;
-                    }
-                    if (found) break;
-                }
-                if (found) break;
-            }
-            if (found) break;
-        }
-
-        if (!found)
-        {
-            FatalErrorInFunction
-                << "face " << fI << " in patch " << patchID
-                << " does not have neighbour cell"
-                << " face: " << patchFaces[fI]
-                << abort(FatalError);
-        }
-    }
-
-    return FaceCells;
 }
 
 
@@ -406,7 +335,11 @@ void readCells
             hexPoints[i] = row[i+1];
         }
 
-        renumber(texgenToFoam, hexPoints);
+        forAll(hexPoints, labelI)
+        {
+            hexPoints[labelI] = texgenToFoam[hexPoints[labelI]];
+        }
+
         cellAsShapes.append( cellShape(hex, hexPoints) );
         cells.append( cell( FACEHEX ) );
 
@@ -663,7 +596,6 @@ void readNSet
     if 
     (
         regionName(11) != "Constraints" && 
-        // regionName(6) != "Master" &&
         regionName(3) != "All"
     )
     {
@@ -689,7 +621,11 @@ void readNSet
             }
 
             List<label> row = labelParse(line, SIZE_NOT_DEFINED);
-            renumber(texgenToFoam, row);
+            
+            forAll(row, labelI)
+            {
+                row[labelI] = texgenToFoam[row[labelI]];
+            }
 
             forAll (row, i)
             {
@@ -1241,15 +1177,6 @@ int main(int argc, char *argv[])
             labelList addOwner = mesh.faceOwner();
             labelList addNeighbour = mesh.faceNeighbour();
 
-            // mergePolyMesh newMesh
-            // (
-            //     mesh,
-            //     dirX,
-            //     mesh.points(),
-            //     mesh.faces(),
-            //     mesh.faceOwner(),
-            //     mesh.faceNeighbour()
-            // );
             mergePolyMesh newMesh
             (
                 IOobject
