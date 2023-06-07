@@ -428,16 +428,16 @@ void Foam::mergePolyMesh::merge()
     switch(axisDir_)
     {
         case 0:
-            masterPatchName = "Right";
-            slavePatchName = "Left";
+            masterPatchName = "MergingRight";
+            slavePatchName = "MergingLeft";
             break;
         case 1:
-            masterPatchName = "Back";
-            slavePatchName = "Front";
+            masterPatchName = "MergingBack";
+            slavePatchName = "MergingFront";
             break;
         case 2:
-            masterPatchName = "Top";
-            slavePatchName = "Bottom";
+            masterPatchName = "MergingTop";
+            slavePatchName = "MergingBottom";
             break;
     }
 
@@ -508,24 +508,20 @@ void Foam::mergePolyMesh::setAxisDir(const label axisDir)
 }
 
 
-void Foam::mergePolyMesh::getNewProps
+void Foam::mergePolyMesh::getProps
 (
-    labelList& patchSizes,
-    labelList& patchStarts,
+    labelList& boundaryPatchIndices,
+    wordList& boundaryPatchNames,
+    faceListList& boundaryFaces,
     List<DynamicList<label>>& zoneCells
 )
 {
-    patchSizes.clear();
-    patchStarts.clear();
+    boundaryPatchIndices.clear();
+    boundaryPatchNames.clear();
+    boundaryFaces.clear();
     zoneCells.clear();
 
     zoneCells.setSize(cellZones().size());
-
-    forAll(patchDicts_, patchi)
-    {
-        patchSizes[patchi] = readInt(patchDicts_[patchi]["nFaces"]);
-        patchStarts[patchi] = readInt(patchDicts_[patchi]["startFace"]);
-    }
 
     forAll(cellZones(), zonei)
     {
@@ -534,6 +530,17 @@ void Foam::mergePolyMesh::getNewProps
             zoneCells[zonei].append(cellZones()[zonei][celli]);
         }
     }
+
+    forAll(boundaryMesh(), patchi)
+    {
+        label index = boundaryMesh()[patchi].index();
+        word name = boundaryMesh()[patchi].name();
+
+        boundaryPatchIndices.append(index);
+        boundaryPatchNames.append(name);
+        boundaryFaces.append(boundaryMesh()[patchi].localFaces());
+    }
+
 }
 
 

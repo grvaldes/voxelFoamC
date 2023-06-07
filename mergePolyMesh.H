@@ -124,7 +124,8 @@ public:
         void setAxisDir(const label);
 
         //- Returns properties for setting new mesh
-        void getNewProps(labelList&, labelList&, List<DynamicList<label>>&);
+        void getProps(labelList&, wordList&, faceListList&, 
+            List<DynamicList<label>>&);
 
     // Member Operators
 
