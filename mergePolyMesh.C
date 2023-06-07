@@ -169,7 +169,6 @@ Foam::label Foam::mergePolyMesh::addFaceZone
 // )
 Foam::mergePolyMesh::mergePolyMesh(const IOobject& io)
 :
-
     polyMesh(io),
     axisDir_(-1),
     meshMod_(*this),
@@ -429,16 +428,16 @@ void Foam::mergePolyMesh::merge()
     switch(axisDir_)
     {
         case 0:
-            masterPatchName = "MergingRight";
-            slavePatchName = "MergingLeft";
+            masterPatchName = "Right";
+            slavePatchName = "Left";
             break;
         case 1:
-            masterPatchName = "MergingBack";
-            slavePatchName = "MergingFront";
+            masterPatchName = "Back";
+            slavePatchName = "Front";
             break;
         case 2:
-            masterPatchName = "MergingTop";
-            slavePatchName = "MergingBottom";
+            masterPatchName = "Top";
+            slavePatchName = "Bottom";
             break;
     }
 
@@ -519,7 +518,7 @@ void Foam::mergePolyMesh::getNewProps
     patchSizes.clear();
     patchStarts.clear();
     zoneCells.clear();
-    
+
     zoneCells.setSize(cellZones().size());
 
     forAll(patchDicts_, patchi)

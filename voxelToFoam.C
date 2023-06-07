@@ -1135,9 +1135,9 @@ int main(int argc, char *argv[])
                 addPoints[pointi].x() += moveX;
             }
 
-            Map<word> newBoundaryPatchNames = boundaryPatchNames;
-            newBoundaryPatchNames.erase(1);
-            newBoundaryPatchNames.insert(1, "MergingLeft");
+            // Map<word> newBoundaryPatchNames = boundaryPatchNames;
+            // newBoundaryPatchNames.erase(1);
+            // newBoundaryPatchNames.insert(1, "MergingLeft");
 
             polyMesh addMesh = createMesh
             (
@@ -1147,7 +1147,7 @@ int main(int argc, char *argv[])
                 neighbour, 
                 patchSizes,
                 patchStarts,
-                newBoundaryPatchNames, 
+                boundaryPatchNames, 
                 boundaryTypes, 
                 boundaryFaces, 
                 zoneCells,
@@ -1174,18 +1174,18 @@ int main(int argc, char *argv[])
             labelList addOwner = newMesh.faceOwner();
             labelList addNeighbour = newMesh.faceNeighbour();
             
-            Map<word> newBoundaryPatchNames;
+            // Map<word> newBoundaryPatchNames;
 
-            forAll(newMesh.boundaryMesh(), bd)
-            {
-                const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
-                newBoundaryPatchNames.insert
-                    (
-                        curPatch.index(),
-                        (curPatch.name() == "Front" ? "MergingFront" : "Front")
-                    );
+            // forAll(newMesh.boundaryMesh(), bd)
+            // {
+            //     const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
+            //     newBoundaryPatchNames.insert
+            //         (
+            //             curPatch.index(),
+            //             (curPatch.name() == "Front" ? "MergingFront" : "Front")
+            //         );
 
-            }
+            // }
             // newBoundaryPatchNames.erase(3);
             // newBoundaryPatchNames.insert(3, "MergingFront");
             
@@ -1202,7 +1202,7 @@ int main(int argc, char *argv[])
                 addNeighbour, 
                 newPatchSizes,
                 newPatchStarts,
-                newBoundaryPatchNames, 
+                boundaryPatchNames, 
                 boundaryTypes, 
                 boundaryFaces, 
                 newZoneCells,
@@ -1229,18 +1229,18 @@ int main(int argc, char *argv[])
             labelList addOwner = newMesh.faceOwner();
             labelList addNeighbour = newMesh.faceNeighbour();
             
-            Map<word> newBoundaryPatchNames;
+            // Map<word> newBoundaryPatchNames;
 
-            forAll(newMesh.boundaryMesh(), bd)
-            {
-                const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
-                newBoundaryPatchNames.insert
-                    (
-                        curPatch.index(),
-                        (curPatch.name() == "Bottom" ? "MergingBottom" : "Bottom")
-                    );
+            // forAll(newMesh.boundaryMesh(), bd)
+            // {
+            //     const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
+            //     newBoundaryPatchNames.insert
+            //         (
+            //             curPatch.index(),
+            //             (curPatch.name() == "Bottom" ? "MergingBottom" : "Bottom")
+            //         );
 
-            }
+            // }
             
             forAll(addPoints, pointi)
             {
@@ -1255,7 +1255,7 @@ int main(int argc, char *argv[])
                 addNeighbour, 
                 newPatchSizes,
                 newPatchStarts,
-                newBoundaryPatchNames, 
+                boundaryPatchNames, 
                 boundaryTypes, 
                 boundaryFaces, 
                 newZoneCells,
