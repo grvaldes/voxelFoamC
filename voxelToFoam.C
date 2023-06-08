@@ -1144,7 +1144,7 @@ int main(int argc, char *argv[])
             )
         );
 
-        newMesh.setAxisDir(dirX);
+        Info<< "1 " << newMesh.boundaryMesh() << endl;
 
         if (debug)
         {
@@ -1166,15 +1166,18 @@ int main(int argc, char *argv[])
             faceList addFaces = mesh.faces();
             labelList addOwner = mesh.faceOwner();
             labelList addNeighbour = mesh.faceNeighbour();
+            labelList addBoundaryPatchIndices = mesh.boundaryMesh().patchID();
+            wordList addBoundaryPatchNames = mesh.boundaryMesh().names();
+
+            newMesh.setAxisDir(dirX);
+            addBoundaryPatchNames[1] = "MergingLeft";
+
+            Info<< "2 " << newMesh.boundaryMesh() << endl;
 
             forAll(addPoints, pointi)
             {
                 addPoints[pointi].x() += moveX;
             }
-
-            // Map<word> newBoundaryPatchNames = boundaryPatchNames;
-            // newBoundaryPatchNames.erase(1);
-            // newBoundaryPatchNames.insert(1, "MergingLeft");
 
             polyMesh addMesh = createMesh
             (
@@ -1182,8 +1185,8 @@ int main(int argc, char *argv[])
                 addFaces,
                 addOwner,
                 addNeighbour,
-                boundaryPatchIndices, 
-                boundaryPatchNames, 
+                addBoundaryPatchIndices, 
+                addBoundaryPatchNames, 
                 boundaryTypes, 
                 boundaryFaces, 
                 zoneCells,
@@ -1203,128 +1206,132 @@ int main(int argc, char *argv[])
             }
 
             newMesh.addMesh(addMesh);
+        Info<< "3 " << newMesh.boundaryMesh() << endl;
+
             newMesh.merge();
+        Info<< "4 " << newMesh.boundaryMesh() << endl;
+
 
             moveX += boundSize.x();
         }
 
-        newMesh.setAxisDir(dirY);
-        newMesh.getProps
-        (
-            newBoundaryPatchIndices, 
-            newBoundaryPatchNames, 
-            newBoundaryFaces, 
-            newZoneCells
-        );
+        // newMesh.setAxisDir(dirY);
+        // newMesh.getProps
+        // (
+        //     newBoundaryPatchIndices, 
+        //     newBoundaryPatchNames, 
+        //     newBoundaryFaces, 
+        //     newZoneCells
+        // );
 
-        for(label j=1; j < reps[1]; j++)
-        {
-            Info<< "Joining cells " << j << " and " << (j+1) <<
-                " in the Y direction." << endl;
+        // for(label j=1; j < reps[1]; j++)
+        // {
+        //     Info<< "Joining cells " << j << " and " << (j+1) <<
+        //         " in the Y direction." << endl;
 
-            pointField addPoints = newMesh.points();
-            faceList addFaces = newMesh.faces();
-            labelList addOwner = newMesh.faceOwner();
-            labelList addNeighbour = newMesh.faceNeighbour();
+        //     pointField addPoints = newMesh.points();
+        //     faceList addFaces = newMesh.faces();
+        //     labelList addOwner = newMesh.faceOwner();
+        //     labelList addNeighbour = newMesh.faceNeighbour();
             
-            // Map<word> newBoundaryPatchNames;
+        //     // Map<word> newBoundaryPatchNames;
 
-            // forAll(newMesh.boundaryMesh(), bd)
-            // {
-            //     const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
-            //     newBoundaryPatchNames.insert
-            //         (
-            //             curPatch.index(),
-            //             (curPatch.name() == "Front" ? "MergingFront" : "Front")
-            //         );
+        //     // forAll(newMesh.boundaryMesh(), bd)
+        //     // {
+        //     //     const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
+        //     //     newBoundaryPatchNames.insert
+        //     //         (
+        //     //             curPatch.index(),
+        //     //             (curPatch.name() == "Front" ? "MergingFront" : "Front")
+        //     //         );
 
-            // }
-            // newBoundaryPatchNames.erase(3);
-            // newBoundaryPatchNames.insert(3, "MergingFront");
+        //     // }
+        //     // newBoundaryPatchNames.erase(3);
+        //     // newBoundaryPatchNames.insert(3, "MergingFront");
             
-            forAll(addPoints, pointi)
-            {
-                addPoints[pointi].y() += moveY;
-            }
+        //     forAll(addPoints, pointi)
+        //     {
+        //         addPoints[pointi].y() += moveY;
+        //     }
 
-            polyMesh addMesh = createMesh
-            (
-                addPoints, 
-                addFaces, 
-                addOwner, 
-                addNeighbour,
-                newBoundaryPatchIndices, 
-                newBoundaryPatchNames, 
-                boundaryTypes, 
-                newBoundaryFaces, 
-                newZoneCells,
-                elementSets, 
-                runTime
-            );
+        //     polyMesh addMesh = createMesh
+        //     (
+        //         addPoints, 
+        //         addFaces, 
+        //         addOwner, 
+        //         addNeighbour,
+        //         newBoundaryPatchIndices, 
+        //         newBoundaryPatchNames, 
+        //         boundaryTypes, 
+        //         newBoundaryFaces, 
+        //         newZoneCells,
+        //         elementSets, 
+        //         runTime
+        //     );
 
-            newMesh.addMesh(addMesh);
-            newMesh.merge();
+        //     newMesh.addMesh(addMesh);
+        //     newMesh.merge();
 
-            moveY += boundSize.y();
-        }
+        //     moveY += boundSize.y();
+        // }
 
-        newMesh.setAxisDir(dirZ);
-        newMesh.getProps
-        (
-            newBoundaryPatchIndices, 
-            newBoundaryPatchNames, 
-            newBoundaryFaces, 
-            newZoneCells
-        );
+        // newMesh.setAxisDir(dirZ);
+        // newMesh.getProps
+        // (
+        //     newBoundaryPatchIndices, 
+        //     newBoundaryPatchNames, 
+        //     newBoundaryFaces, 
+        //     newZoneCells
+        // );
 
-        for(label k=1; k < reps[2]; k++)
-        {
-            Info<< "Joining cells " << k << " and " << (k+1) <<
-                " in the Z direction." << endl;
+        // for(label k=1; k < reps[2]; k++)
+        // {
+        //     Info<< "Joining cells " << k << " and " << (k+1) <<
+        //         " in the Z direction." << endl;
 
-            pointField addPoints = newMesh.points();
-            faceList addFaces = newMesh.faces();
-            labelList addOwner = newMesh.faceOwner();
-            labelList addNeighbour = newMesh.faceNeighbour();
+        //     pointField addPoints = newMesh.points();
+        //     faceList addFaces = newMesh.faces();
+        //     labelList addOwner = newMesh.faceOwner();
+        //     labelList addNeighbour = newMesh.faceNeighbour();
             
-            // Map<word> newBoundaryPatchNames;
+        //     // Map<word> newBoundaryPatchNames;
 
-            // forAll(newMesh.boundaryMesh(), bd)
-            // {
-            //     const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
-            //     newBoundaryPatchNames.insert
-            //         (
-            //             curPatch.index(),
-            //             (curPatch.name() == "Bottom" ? "MergingBottom" : "Bottom")
-            //         );
+        //     // forAll(newMesh.boundaryMesh(), bd)
+        //     // {
+        //     //     const polyPatch& curPatch = newMesh.boundaryMesh()[bd];
+        //     //     newBoundaryPatchNames.insert
+        //     //         (
+        //     //             curPatch.index(),
+        //     //             (curPatch.name() == "Bottom" ? "MergingBottom" : "Bottom")
+        //     //         );
 
-            // }
+        //     // }
             
-            forAll(addPoints, pointi)
-            {
-                addPoints[pointi].z() += moveZ;
-            }
+        //     forAll(addPoints, pointi)
+        //     {
+        //         addPoints[pointi].z() += moveZ;
+        //     }
 
-            polyMesh addMesh = createMesh
-            (
-                addPoints, 
-                addFaces, 
-                addOwner, 
-                addNeighbour,
-                newBoundaryPatchIndices, 
-                newBoundaryPatchNames, 
-                boundaryTypes, 
-                newBoundaryFaces, 
-                newZoneCells,
-                elementSets, 
-                runTime
-            );
+        //     polyMesh addMesh = createMesh
+        //     (
+        //         addPoints, 
+        //         addFaces, 
+        //         addOwner, 
+        //         addNeighbour,
+        //         newBoundaryPatchIndices, 
+        //         newBoundaryPatchNames, 
+        //         boundaryTypes, 
+        //         newBoundaryFaces, 
+        //         newZoneCells,
+        //         elementSets, 
+        //         runTime
+        //     );
 
-            newMesh.addMesh(addMesh);
-            newMesh.merge();
+        //     newMesh.addMesh(addMesh);
+        //     newMesh.merge();
 
-            moveZ += boundSize.z();
-        }
+        //     moveZ += boundSize.z();
+        // }
 
 
         newMesh.setInstance(mesh.pointsInstance());

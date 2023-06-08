@@ -183,22 +183,6 @@ Foam::mergePolyMesh::mergePolyMesh(const IOobject& io)
         boundaryMesh()[patchi].write(os);
         patchDicts_[patchi] = dictionary(IStringStream(os.str())());
     }
- 
-    List<polyPatch*> bmPatches(patchNames_.size());
-
-    forAll(bmPatches, patchi)
-    {
-        bmPatches[patchi] = new polyPatch
-            (
-                patchNames_[patchi],
-                patchDicts_[patchi],
-                patchi,
-                boundaryMesh(),
-                boundaryMesh()[patchi].physicalType()
-            );
-    }
-    removeBoundary();
-    addPatches(bmPatches);
 }
 
 
@@ -484,6 +468,7 @@ void Foam::mergePolyMesh::merge()
     autoPtr<mapPolyMesh> morphMap = stitcher.changeMesh(true);
     movePoints(morphMap->preMotionPoints());
 
+
     // Update boundaries to remove empty ones.
     List<polyPatch*> bmPatches;
 
@@ -505,6 +490,48 @@ void Foam::mergePolyMesh::merge()
 void Foam::mergePolyMesh::setAxisDir(const label axisDir)
 {
     axisDir_ = axisDir;
+
+    OStringStream os;
+    List<polyPatch*> bmPatches;
+
+    forAll(boundaryMesh(), patchi)
+    {
+        const polyPatch& bp = boundaryMesh()[patchi];
+        
+        bp.write(os);
+        patchDicts_[patchi] = dictionary(IStringStream(os.str())());
+
+        if (axisDir_ == 0 && bp.name() == "Right")
+        {
+            patchNames_[patchi] = "MergingRight";
+        }
+        else if (axisDir_ == 1 && bp.name() == "Back")
+        {
+            patchNames_[patchi] = "MergingBack";
+        }
+        else if (axisDir_ == 2 && bp.name() == "Top")
+        {
+            patchNames_[patchi] = "MergingTop";   
+        }
+        else{
+            patchNames_[patchi] = bp.name();
+        }
+
+        bmPatches.append
+        (
+            new polyPatch
+            (
+                patchNames_[patchi],
+                patchDicts_[patchi],
+                patchi,
+                boundaryMesh(),
+                bp.physicalType()
+            )
+        );   
+    }
+
+    removeBoundary();
+    addPatches(bmPatches);
 }
 
 
