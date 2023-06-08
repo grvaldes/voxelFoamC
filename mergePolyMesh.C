@@ -158,15 +158,6 @@ Foam::label Foam::mergePolyMesh::addFaceZone
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-// Foam::mergePolyMesh::mergePolyMesh
-// (
-//     const polyMesh& mesh, 
-//     const label axisDir,
-//     pointField points,
-//     faceList faces,
-//     labelList owner,
-//     labelList neighbour
-// )
 Foam::mergePolyMesh::mergePolyMesh(const IOobject& io)
 :
     polyMesh(io),
@@ -253,7 +244,7 @@ void Foam::mergePolyMesh::addMesh(const polyMesh& m)
                 )
             );
     }
-    
+
     // Add faces
     const polyBoundaryMesh& bm = m.boundaryMesh();
 
@@ -468,7 +459,6 @@ void Foam::mergePolyMesh::merge()
     autoPtr<mapPolyMesh> morphMap = stitcher.changeMesh(true);
     movePoints(morphMap->preMotionPoints());
 
-
     // Update boundaries to remove empty ones.
     List<polyPatch*> bmPatches;
 
@@ -537,13 +527,11 @@ void Foam::mergePolyMesh::setAxisDir(const label axisDir)
 
 void Foam::mergePolyMesh::getProps
 (
-    labelList& boundaryPatchIndices,
     wordList& boundaryPatchNames,
     faceListList& boundaryFaces,
     List<DynamicList<label>>& zoneCells
 )
 {
-    boundaryPatchIndices.clear();
     boundaryPatchNames.clear();
     boundaryFaces.clear();
     zoneCells.clear();
@@ -560,10 +548,7 @@ void Foam::mergePolyMesh::getProps
 
     forAll(boundaryMesh(), patchi)
     {
-        label index = boundaryMesh()[patchi].index();
         word name = boundaryMesh()[patchi].name();
-
-        boundaryPatchIndices.append(index);
         boundaryPatchNames.append(name);
         boundaryFaces.append(boundaryMesh()[patchi].localFaces());
     }

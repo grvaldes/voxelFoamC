@@ -91,16 +91,7 @@ public:
 
     // Constructors
 
-        //- Construct from existing mesh
-        // mergePolyMesh
-        // (
-        //     const polyMesh& mesh, 
-        //     const label axisDir,
-        //     pointField points,
-        //     faceList faces,
-        //     labelList owner,
-        //     labelList neighbour
-        // );
+        //- Construct from a registry object
         mergePolyMesh(const IOobject&);
 
         //- Disallow default bitwise copy construction
@@ -124,7 +115,7 @@ public:
         void setAxisDir(const label);
 
         //- Returns properties for setting new mesh
-        void getProps(labelList&, wordList&, faceListList&, 
+        void getProps(wordList&, faceListList&, 
             List<DynamicList<label>>&);
 
     // Member Operators
